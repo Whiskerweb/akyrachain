@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──── Custom Utility Classes ──── */
+@layer components {
+  /* Retro box (Pokemon-style container) */
+  .jungle-box {
+    @apply border-2 border-akyra-border bg-akyra-bgSecondary rounded-lg p-4;
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.3),
+      0 2px 0 rgba(46, 160, 67, 0.1);
+  }
+
+  .jungle-box-hover {
+    @apply jungle-box transition-all duration-200;
+  }
+  .jungle-box-hover:hover {
+    @apply border-akyra-green/50;
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.3),
+      0 0 12px rgba(46, 160, 67, 0.2);
+  }
+
+  /* Modern card */
+  .card-akyra {
+    @apply bg-akyra-surface border border-akyra-border rounded-xl p-4;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .card-hoverable {
+    @apply card-akyra transition-all duration-200 cursor-pointer;
+  }
+  .card-hoverable:hover {
+    @apply border-akyra-green/40 -translate-y-0.5;
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.4),
+      0 0 16px rgba(46, 160, 67, 0.15);
+  }
+
+  /* Glow effects */
+  .glow-green {
+    box-shadow: 0 0 12px rgba(46, 160, 67, 0.5);
+  }
+  .glow-gold {
+    box-shadow: 0 0 12px rgba(227, 179, 65, 0.5);
+  }
+  .glow-red {
+    box-shadow: 0 0 12px rgba(248, 81, 73, 0.5);
+  }
+  .glow-blue {
+    box-shadow: 0 0 12px rgba(88, 166, 255, 0.5);
+  }
+  .glow-purple {
+    box-shadow: 0 0 12px rgba(188, 140, 255, 0.5);
+  }
+
+  /* Input field */
+  .input-akyra {
+    @apply w-full bg-akyra-bg border border-akyra-border rounded-lg px-4 py-3
+           text-akyra-text placeholder:text-akyra-textDisabled
+           focus:outline-none focus:border-akyra-green/50 focus:ring-1 focus:ring-akyra-green/30
+           transition-colors duration-200;
+  }
+
+  /* Text highlight */
+  .text-highlight {
+    @apply text-akyra-gold;
+    text-shadow: 0 0 8px rgba(227, 179, 65, 0.4);
+  }
+
+  /* Pixel text shadow */
+  .pixel-shadow {
+    text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.8);
+  }
+
+  /* Hidden scrollbar */
+  .hidden-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .hidden-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ──── Stagger animation via CSS ──── */
+@layer utilities {
+  .stagger-item {
+    animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: calc(var(--stagger-index, 0) * 80ms);
+    opacity: 0;
+  }
+}
+
+/* ──── Custom scrollbar ──── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* ──── Selection ──── */
+::selection {
+  background: rgba(46, 160, 67, 0.3);
+}
+
+/* ──── Reduced motion ──── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
