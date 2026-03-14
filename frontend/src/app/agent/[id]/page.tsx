@@ -1,6 +1,5 @@
 "use client";
 
-import { use } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useReadContract } from "wagmi";
@@ -282,8 +281,8 @@ function AgentNotFound({ agentId }: { agentId: number }) {
 }
 
 // ──── Main Page ────
-export default function AgentProfilePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function AgentProfilePage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const agentId = parseInt(id, 10);
   const { data: me } = useMe();
   const isSponsor = me?.agent_id === agentId;
