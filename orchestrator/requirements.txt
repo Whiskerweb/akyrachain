@@ -35,7 +35,7 @@ celery[redis]==5.4.0
 cryptography==44.0.0
 
 # Utils
-pydantic==2.10.4
+pydantic[email]==2.10.4
 pydantic-settings==2.7.1
 python-dotenv==1.0.1
 eth-account==0.13.4

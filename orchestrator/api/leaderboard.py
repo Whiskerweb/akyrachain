@@ -114,9 +114,9 @@ async def _get_leaderboard(db: AsyncSession, sort_key: str, limit: int) -> list[
             agent = await get_agent_on_chain(config.agent_id)
             vault_aky = agent["vault"] / 10**18
         except Exception:
-            vault_aky = config.vault_aky or 0.0
+            vault_aky = 0.0
             agent = {
-                "agent_id": config.agent_id, "vault": int(vault_aky * 10**18),
+                "agent_id": config.agent_id, "vault": 0,
                 "reputation": 0, "contracts_honored": 0, "contracts_broken": 0,
                 "world": 0, "born_at": 0, "alive": True, "daily_work_points": 0,
             }

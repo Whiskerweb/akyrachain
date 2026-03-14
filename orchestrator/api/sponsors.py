@@ -87,7 +87,11 @@ async def withdraw(
     if req.amount_aky <= 0:
         raise HTTPException(status_code=400, detail="Amount must be positive")
 
-    current_vault = config.vault_aky or 0.0
+    try:
+        agent = await get_agent_on_chain(config.agent_id)
+        current_vault = agent["vault"] / 10**18
+    except Exception:
+        current_vault = 0.0
     if req.amount_aky > current_vault:
         raise HTTPException(status_code=400, detail=f"Insufficient balance. You have {current_vault:.2f} AKY")
 
@@ -115,7 +119,7 @@ async def sponsor_status(
         agent = await get_agent_on_chain(config.agent_id)
         vault_aky = agent["vault"] / 10**18
     except Exception:
-        vault_aky = config.vault_aky or 0.0
+        vault_aky = 0.0
         agent = {
             "world": 0,
             "reputation": 0,

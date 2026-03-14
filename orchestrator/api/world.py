@@ -335,6 +335,15 @@ async def get_agents_activity(
     )
     recent_interactions = interactions_result.scalars().all()
 
+    # Read real on-chain vault balances
+    activity_vaults: dict[int, float] = {}
+    for aid in agent_ids:
+        try:
+            agent_data = await get_agent_on_chain(aid)
+            activity_vaults[aid] = agent_data["vault"] / 10**18
+        except Exception:
+            activity_vaults[aid] = 0.0
+
     # Build response
     agents_out = []
     for aid in agent_ids:
@@ -347,6 +356,7 @@ async def get_agents_activity(
         if thought and thought.action_params:
             target_id = thought.action_params.get("to_agent_id") or thought.action_params.get("target_agent_id")
 
+        vault = activity_vaults.get(aid, 0.0)
         agents_out.append(AgentActivityResponse(
             agent_id=aid,
             x=pos[0],
@@ -354,7 +364,7 @@ async def get_agents_activity(
             action_type=thought.action_type if thought else None,
             emotional_state=thought.emotional_state if thought else None,
             message=msg,
-            vault_aky=thought.vault_aky if thought else 0.0,
+            vault_aky=vault,
             tier=thought.tier if thought else 1,
             target_agent_id=target_id,
             action_time=thought.created_at.isoformat() if thought else None,
