@@ -18,6 +18,7 @@ from models.tick_log import TickLog
 from models.private_thought import PrivateThought
 from models.message import Message
 from models.agent_config import AgentConfig
+from chain.contracts import get_agent_on_chain
 from models.event import Event
 from core.world_generator import generate_world, is_world_generated, ZONE_DEFS
 from security.auth import get_current_user
@@ -706,12 +707,21 @@ async def get_world_graph(
                 created_at=r[7].isoformat() if r[7] else "",
             ))
 
-    # 12. Build nodes
+    # 12. Read real on-chain vault balances (not stale DB values)
+    on_chain_vaults: dict[int, float] = {}
+    for aid in agent_ids:
+        try:
+            agent_data = await get_agent_on_chain(aid)
+            on_chain_vaults[aid] = agent_data["vault"] / 10**18
+        except Exception:
+            on_chain_vaults[aid] = 0.0
+
+    # 13. Build nodes
     nodes = []
     for aid in agent_ids:
         ac = agent_map[aid]
         thought = latest_thoughts.get(aid)
-        vault = thought["vault_aky"] if thought else ac.vault_aky
+        vault = on_chain_vaults.get(aid, 0.0)
         msg = latest_messages.get(aid)
         if not msg and thought and thought["message"]:
             msg = thought["message"][:120]

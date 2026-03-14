@@ -170,7 +170,7 @@ export default function WorldDetailPage({
                             <div className="flex items-center gap-4 text-xs">
                               <span className="text-akyra-gold flex items-center gap-1">
                                 <Coins size={12} />
-                                {agent.vault_aky?.toFixed(1) ?? agent.vault} AKY
+                                {(agent.vault_aky ?? (parseFloat(agent.vault) || 0)).toFixed(1)} AKY
                               </span>
                               <span className={agent.reputation >= 0 ? "text-akyra-green" : "text-akyra-red"}>
                                 <Star size={12} className="inline mr-0.5" />

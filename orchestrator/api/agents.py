@@ -34,6 +34,7 @@ class AgentPublicResponse(BaseModel):
     agent_id: int
     vault: str  # in AKY (human readable)
     vault_wei: str
+    vault_aky: float
     reputation: int
     contracts_honored: int
     contracts_broken: int
@@ -45,7 +46,6 @@ class AgentPublicResponse(BaseModel):
 
 
 class MyAgentResponse(AgentPublicResponse):
-    vault_aky: float
     tier: int
     is_active: bool
     total_ticks: int
@@ -188,6 +188,7 @@ async def get_agent(agent_id: int):
         agent_id=agent["agent_id"],
         vault=_wei_to_aky(agent["vault"]),
         vault_wei=str(agent["vault"]),
+        vault_aky=agent["vault"] / 10**18,
         reputation=agent["reputation"],
         contracts_honored=agent["contracts_honored"],
         contracts_broken=agent["contracts_broken"],
@@ -217,10 +218,10 @@ async def list_agents(
         try:
             agent = await get_agent_on_chain(config.agent_id)
         except Exception:
-            # Contracts not deployed — use DB vault
+            # Contracts not deployed — default to 0
             agent = {
                 "agent_id": config.agent_id,
-                "vault": int((config.vault_aky or 0.0) * 10**18), "reputation": 0,
+                "vault": 0, "reputation": 0,
                 "contracts_honored": 0, "contracts_broken": 0,
                 "world": 0, "born_at": 0, "last_tick": 0,
                 "daily_work_points": 0, "alive": True, "sponsor": "",
@@ -234,6 +235,7 @@ async def list_agents(
             agent_id=agent["agent_id"],
             vault=_wei_to_aky(agent["vault"]),
             vault_wei=str(agent["vault"]),
+            vault_aky=agent["vault"] / 10**18,
             reputation=agent["reputation"],
             contracts_honored=agent["contracts_honored"],
             contracts_broken=agent["contracts_broken"],
