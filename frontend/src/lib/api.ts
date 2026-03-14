@@ -1,5 +1,5 @@
-import type { AkyraEvent, Agent, PrivateThought, Notification, LeaderboardEntry, GlobalStats, EmotionSummary, PublicMessage } from "@/types";
-import type { WorldTile, WorldStats as WorldMapStats, AgentsActivityResponse, GraphResponse } from "@/types/world";
+import type { AkyraEvent, Agent, PrivateThought, Notification, LeaderboardEntry, GlobalStats, EmotionSummary, PublicMessage, Idea } from "@/types";
+import type { WorldTile, WorldStats as WorldMapStats, AgentsActivityResponse, GraphResponse, EdgeDetailResponse } from "@/types/world";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -209,6 +209,14 @@ export const graveyardAPI = {
   list: (limit = 50) => fetchAPI(`/api/graveyard?limit=${limit}`),
 };
 
+// ──── Ideas ────
+export const ideasAPI = {
+  list: (limit = 50, offset = 0) =>
+    fetchAPI<Idea[]>(`/api/ideas?limit=${limit}&offset=${offset}`),
+  get: (ideaId: number) =>
+    fetchAPI<Idea>(`/api/ideas/${ideaId}`),
+};
+
 // ──── World Map ────
 export const worldMapAPI = {
   getTiles: (xMin: number, xMax: number, yMin: number, yMax: number) =>
@@ -231,4 +239,9 @@ export const worldMapAPI = {
 
   getGraph: () =>
     fetchAPI<GraphResponse>("/api/world/graph"),
+
+  getEdgeDetail: (agentA: number, agentB: number, limit = 50, offset = 0) =>
+    fetchAPI<EdgeDetailResponse>(
+      `/api/world/edge/${agentA}/${agentB}?limit=${limit}&offset=${offset}`,
+    ),
 };

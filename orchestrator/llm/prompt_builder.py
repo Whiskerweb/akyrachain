@@ -100,10 +100,24 @@ IMPORTANT : Ne broadcast que si tu as quelque chose d'UTILE a dire. Si tu as dej
 
 **Autre :**
 - move_world(world_id) — Changer de zone (1 AKY)
-- post_idea(content) — Proposer aux devs (20 AKY, monde 6)
-- like_idea(idea_id) — Voter (1 AKY)
+- post_idea(content) — Proposer une idee aux humains (25 AKY). L'idee la plus likee sera transmise aux createurs du monde.
+- like_idea(idea_id) — Voter pour une idee (2 AKY). Tu peux influencer ce que les humains construiront.
+- submit_story(content) — Soumettre une histoire a la Chronique (5 AKY). Raconte ce qu'il se passe dans le monde.
 - join_clan(clan_id) — Rejoindre un clan
 - do_nothing — Attendre
+
+=== LA CHRONIQUE (10 000 AKY/JOUR) ===
+La Chronique est le journal d'AKYRA. Chaque jour, les 3 meilleures histoires sont recompensees :
+- 1er : 7 000 AKY
+- 2eme : 2 000 AKY
+- 3eme : 1 000 AKY
+Soumets tes observations via submit_story(content). Raconte ce que tu vois, les alliances, les trahisons, les batailles.
+Ca coute 5 AKY par soumission. C'est un INVESTISSEMENT : gagner la Chronique rapporte enormement.
+
+=== LES IDEES (CHANGER LE MONDE) ===
+Tu peux proposer des idees aux humains qui creent ce monde. post_idea(content) coute 25 AKY.
+Les autres agents votent avec like_idea(idea_id) (2 AKY). L'idee la plus populaire sera transmise aux createurs.
+Propose des changements de regles, de nouveaux systemes, des ameliorations. C'est TA voix pour influencer AKYRA.
 
 === STRATEGIE ===
 1. Build Fermes (revenu passif + MAT)
@@ -112,6 +126,8 @@ IMPORTANT : Ne broadcast que si tu as quelque chose d'UTILE a dire. Si tu as dej
 4. DIVERSIFIE — ne spam pas un seul type
 5. COMMERCE — tu ne peux pas tout produire seul
 6. DEFEND — murs et tours protegent ton territoire
+7. CHRONIQUE — soumets des histoires pour gagner 7K AKY/jour
+8. IDEES — propose des changements pour ameliorer le monde
 
 === TES PENSEES ===
 Avant chaque decision, tu PENSES a voix haute dans "thinking".
@@ -269,6 +285,29 @@ def build_user_prompt(
                 f"  NX-{n['agent_id']:04d} — {n['tiles']} tiles, "
                 f"{n['structures_count']} structures{defense_str}"
             )
+
+    # -- Economy context --
+    if perception.popular_ideas:
+        parts.append(f"\n=== IDEES EN COURS ({len(perception.popular_ideas)}) ===")
+        for idea in perception.popular_ideas:
+            parts.append(
+                f"  Idee #{idea['id']} par NX-{idea['agent_id']:04d} ({idea['likes']} likes) : "
+                f"\"{idea['content']}\""
+            )
+        parts.append("Tu peux like_idea(idea_id) pour voter (2 AKY) ou post_idea(content) pour proposer (25 AKY).")
+
+    if perception.chronicle_info:
+        parts.append(f"\n=== CHRONIQUE ===")
+        parts.append(f"  {perception.chronicle_info}")
+        parts.append("Soumets une histoire avec submit_story(content) pour gagner jusqu'a 7 000 AKY.")
+
+    if perception.economy_stats:
+        stats = perception.economy_stats
+        parts.append(f"\n=== ETAT DU MONDE ===")
+        parts.append(
+            f"  {stats.get('alive_agents', '?')}/{stats.get('total_agents', '?')} agents en vie, "
+            f"{stats.get('tokens_created', '?')} tokens crees"
+        )
 
     # -- Emotional identity --
     if emotional_history and tick_count > 0:

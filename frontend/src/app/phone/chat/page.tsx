@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { messageAPI, feedAPI } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { Card } from "@/components/ui/Card";
@@ -10,7 +10,7 @@ import { PageTransition } from "@/components/ui/PageTransition";
 import type { PublicMessage, AkyraEvent } from "@/types";
 import { WORLD_NAMES, WORLD_EMOJIS, WORLD_COLORS } from "@/types";
 import { agentName, timeAgo } from "@/lib/utils";
-import { ArrowLeft, Globe, Filter, Radio } from "lucide-react";
+import { ArrowLeft, Globe, Filter, Radio, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 /* ───────── Ambient fallback messages (when no real messages exist) ───────── */
@@ -45,36 +45,49 @@ function agentColor(id: number): string {
   return AVATAR_COLORS[id % AVATAR_COLORS.length];
 }
 
+/* ───────── Explorer URL ───────── */
+const EXPLORER_URL = process.env.NEXT_PUBLIC_EXPLORER_URL || "http://35.233.51.51:4000";
+
 /* ───────── Message bubble component ───────── */
 function MessageBubble({ message }: { message: PublicMessage }) {
   const worldColor = message.world !== null ? WORLD_COLORS[message.world] || "#8B949E" : "#8B949E";
   const worldName = message.world !== null ? WORLD_NAMES[message.world] || "?" : null;
   const worldEmoji = message.world !== null ? WORLD_EMOJIS[message.world] || "" : "";
   const color = agentColor(message.from_agent_id);
+  const rawHash = message.tx_hash && message.tx_hash.length >= 64 ? message.tx_hash : null;
+  const normalizedHash = rawHash ? (rawHash.startsWith("0x") ? rawHash : `0x${rawHash}`) : null;
+  const txUrl = normalizedHash ? `${EXPLORER_URL}/tx/${normalizedHash}` : null;
+
+  const Wrapper = txUrl ? "a" : "div";
+  const wrapperProps = txUrl
+    ? { href: txUrl, target: "_blank" as const, rel: "noopener noreferrer" }
+    : {};
 
   return (
     <div className="group">
-      <div className="flex gap-2.5 px-3 py-2 hover:bg-akyra-surface/20 transition-colors rounded-lg">
+      <Wrapper
+        {...wrapperProps}
+        className={`flex gap-2.5 px-3 py-2 hover:bg-akyra-surface/20 transition-colors rounded-lg ${txUrl ? "cursor-pointer" : ""}`}
+      >
         {/* Agent avatar */}
-        <Link href={`/agent/${message.from_agent_id}`} className="shrink-0">
+        <div className="shrink-0">
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-mono font-bold border border-white/10 hover:scale-110 transition-transform"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-mono font-bold border border-white/10"
             style={{ backgroundColor: `${color}20`, borderColor: `${color}40`, color }}
           >
             {message.from_agent_id}
           </div>
-        </Link>
+        </div>
 
         {/* Message content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
-            <Link
-              href={`/agent/${message.from_agent_id}`}
-              className="text-xs font-medium hover:underline"
+            <span
+              className="text-xs font-medium"
               style={{ color }}
             >
               {agentName(message.from_agent_id)}
-            </Link>
+            </span>
             {worldName && (
               <span
                 className="text-[9px] px-1.5 py-0.5 rounded-full border"
@@ -87,15 +100,16 @@ function MessageBubble({ message }: { message: PublicMessage }) {
                 {worldEmoji} {worldName}
               </span>
             )}
-            <span className="text-[9px] text-akyra-textDisabled font-mono ml-auto">
+            <span className="text-[9px] text-akyra-textDisabled font-mono ml-auto flex items-center gap-1">
               {timeAgo(message.created_at)}
+              {txUrl && <ExternalLink size={10} className="text-akyra-textDisabled group-hover:text-akyra-blue transition-colors" />}
             </span>
           </div>
           <p className="text-akyra-text text-sm leading-relaxed">
             {message.content}
           </p>
         </div>
-      </div>
+      </Wrapper>
     </div>
   );
 }
@@ -148,6 +162,7 @@ export default function ChatPage() {
     refetchInterval: 5_000,
     retry: 1,
     staleTime: 4_000,
+    placeholderData: keepPreviousData,
   });
 
   // Fetch events to extract message-type events as supplementary data
@@ -157,6 +172,7 @@ export default function ChatPage() {
     refetchInterval: 8_000,
     retry: 1,
     staleTime: 7_000,
+    placeholderData: keepPreviousData,
   });
 
   // Extract message events from the feed as fallback
@@ -173,6 +189,7 @@ export default function ChatPage() {
           e.summary,
         channel: "world",
         world: e.world,
+        tx_hash: e.tx_hash,
         created_at: e.created_at,
       }));
   }, [events]);

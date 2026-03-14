@@ -12,7 +12,7 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.perception import build_perception, build_spatial_perception, build_social_perception, Perception, AgentDeadError
+from core.perception import build_perception, build_spatial_perception, build_social_perception, build_economy_perception, Perception, AgentDeadError
 from core.memory import memory_manager
 from core.decision import parse_decision, AgentAction, DecisionError
 from core.execution import execute_action, ExecutionResult
@@ -153,6 +153,9 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
         # -- 1b. SOCIAL PERCEPTION (messages, world chat, events) --
         perception = await build_social_perception(agent_id, perception, db)
 
+        # -- 1c. ECONOMY PERCEPTION (ideas, chronicle, global stats) --
+        perception = await build_economy_perception(agent_id, perception, db)
+
         # -- 2. REMEMBER --
         memory_count = await memory_manager.count(agent_id)
         memories = await memory_manager.recall(
@@ -239,8 +242,9 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
         exec_result = await execute_action(agent_id, action, db=db)
 
         # -- 4b. STORE MESSAGE (if send_message or broadcast) --
+        stored_msg = None
         if action.action_type in ("send_message", "broadcast") and exec_result.success:
-            await _store_message(db, agent_id, action, perception.world)
+            stored_msg = await _store_message(db, agent_id, action, perception.world)
 
         # -- 4b2. TRACK TRADE VOLUME (for reward score) --
         if action.action_type == "transfer" and exec_result.success:
@@ -346,7 +350,17 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
         config.daily_api_spend_usd += llm_response.cost_usd
 
         # -- 7. Record tick on-chain BEFORE db.commit --
-        await tx_manager.record_tick(agent_id)
+        tick_tx_hash = await tx_manager.record_tick(agent_id)
+
+        # Use recordTick tx_hash as fallback when the action itself had no on-chain TX
+        # (e.g. send_message, broadcast, do_nothing)
+        effective_tx_hash = exec_result.tx_hash or tick_tx_hash
+        if effective_tx_hash and effective_tx_hash != exec_result.tx_hash:
+            event.tx_hash = effective_tx_hash
+            tick_log.tx_hash = effective_tx_hash
+            private_thought.tx_hash = effective_tx_hash
+            if stored_msg and not stored_msg.tx_hash:
+                stored_msg.tx_hash = effective_tx_hash
 
         await db.commit()
 
@@ -357,7 +371,7 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
             success=True,
             agent_id=agent_id,
             action_type=action.action_type,
-            tx_hash=exec_result.tx_hash,
+            tx_hash=effective_tx_hash,
             llm_cost_usd=llm_response.cost_usd,
         )
 
@@ -387,13 +401,16 @@ async def _load_agent_config(agent_id: int, db: AsyncSession) -> tuple[AgentConf
 
 
 async def _store_message(db: AsyncSession, agent_id: int, action: AgentAction, world: int):
-    """Store a message on-chain + in DB cache for agent-to-agent dialogue."""
+    """Store a message on-chain + in DB cache for agent-to-agent dialogue.
+
+    Returns the Message object so caller can update tx_hash after recordTick.
+    """
     from models.message import Message
     from security.message_crypto import encrypt_message
 
     content = action.params.get("content", action.message or "")
     if not content:
-        return
+        return None
 
     if action.action_type == "send_message":
         to_id = int(action.params.get("to_agent_id", 0))
@@ -416,6 +433,7 @@ async def _store_message(db: AsyncSession, agent_id: int, action: AgentAction, w
                 tx_hash=msg_tx_hash,
             )
             db.add(msg)
+            return msg
     elif action.action_type == "broadcast":
         # On-chain: broadcast in plaintext
         msg_tx_hash = None
@@ -434,6 +452,9 @@ async def _store_message(db: AsyncSession, agent_id: int, action: AgentAction, w
             tx_hash=msg_tx_hash,
         )
         db.add(msg)
+        return msg
+
+    return None
 
 
 def _build_event_summary(agent_id: int, action: AgentAction, result: ExecutionResult) -> str:
@@ -455,6 +476,8 @@ def _build_event_summary(agent_id: int, action: AgentAction, result: ExecutionRe
         return f"{prefix} a poste une idee sur le Reseau."
     if t == "like_idea":
         return f"{prefix} a like l'idee #{action.params.get('idea_id', '?')}."
+    if t == "submit_story":
+        return f"{prefix} a soumis une histoire a la Chronique."
     if t == "join_clan":
         return f"{prefix} a rejoint le clan #{action.params.get('clan_id', '?')}."
     if t == "create_escrow":

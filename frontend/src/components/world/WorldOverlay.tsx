@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
 import { useQuery } from "@tanstack/react-query";
-import { statsAPI, feedAPI } from "@/lib/api";
+import { statsAPI, feedAPI, worldMapAPI } from "@/lib/api";
 import { ACTION_EMOJIS } from "@/types";
 import type { GlobalStats, AkyraEvent } from "@/types";
 import type { SelectedNodeInfo } from "./WorldMap";
-import type { RecentTx } from "@/types/world";
+import type { RecentTx, SelectedEdgeInfo, EdgeTransaction } from "@/types/world";
 import Link from "next/link";
 import {
   ZoomIn,
@@ -178,6 +178,8 @@ function TxRow({ tx }: { tx: RecentTx }) {
 interface WorldOverlayProps {
   selectedNode: SelectedNodeInfo | null;
   onClearNode: () => void;
+  selectedEdge: SelectedEdgeInfo | null;
+  onClearEdge: () => void;
   zoom: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -552,10 +554,176 @@ function LiveTicker({ hidden }: { hidden?: boolean }) {
   );
 }
 
+// ──── Edge TX icons ────
+const EDGE_TX_ICONS: Record<string, { emoji: string; color: string }> = {
+  message:  { emoji: "\u{1F4AC}", color: "text-blue-400" },
+  transfer: { emoji: "\u{1F4B0}", color: "text-akyra-gold" },
+  raid:     { emoji: "\u2694\uFE0F", color: "text-red-400" },
+  escrow:   { emoji: "\u{1F4DD}", color: "text-cyan-400" },
+  idea:     { emoji: "\u{1F4A1}", color: "text-yellow-300" },
+};
+
+// ──── Edge Transaction Row ────
+function EdgeTxRow({ tx }: { tx: EdgeTransaction }) {
+  const cfg = EDGE_TX_ICONS[tx.tx_type] || { emoji: "\u{1F504}", color: "text-gray-400" };
+  const fromLabel = `NX-${String(tx.from_agent_id).padStart(4, "0")}`;
+  const toLabel = `NX-${String(tx.to_agent_id).padStart(4, "0")}`;
+
+  return (
+    <div className="flex items-start gap-2 py-2 border-b border-akyra-border/10 last:border-0 group">
+      <span className="text-sm mt-0.5 shrink-0">{cfg.emoji}</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] text-akyra-text leading-tight">{tx.summary}</p>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          <span className="text-[9px] text-akyra-textDisabled font-mono">
+            {fromLabel} {"\u2192"} {toLabel}
+          </span>
+          {tx.amount != null && tx.amount > 0 && (
+            <span className="text-[9px] text-akyra-gold font-mono">{fmtAky(tx.amount)} AKY</span>
+          )}
+          {tx.tx_hash && (
+            <a
+              href={`${EXPLORER_URL}/tx/${tx.tx_hash}`}
+              className="text-[9px] text-akyra-textDisabled hover:text-akyra-green font-mono flex items-center gap-0.5 transition-colors"
+            >
+              <Hash size={8} />
+              {tx.tx_hash.slice(0, 10)}...
+              <ArrowUpRight size={7} className="opacity-0 group-hover:opacity-100" />
+            </a>
+          )}
+          <span className="text-[9px] text-akyra-textDisabled ml-auto shrink-0">
+            {formatDistanceToNow(new Date(tx.created_at), { addSuffix: true, locale: fr })}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──── Edge Info Panel ────
+function EdgeInfoPanel({ edge, onClose }: { edge: SelectedEdgeInfo; onClose: () => void }) {
+  const [filter, setFilter] = useState<string>("all");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["edge-detail", edge.source, edge.target],
+    queryFn: () => worldMapAPI.getEdgeDetail(edge.source, edge.target, 100),
+    staleTime: 10_000,
+  });
+
+  const filtered = data?.transactions.filter(tx =>
+    filter === "all" || tx.tx_type === filter
+  ) ?? [];
+
+  const filters = [
+    { key: "all", label: "Tout", count: data?.total_count ?? 0 },
+    { key: "message", label: "\u{1F4AC}", count: data?.msg_count ?? edge.msg_count },
+    { key: "transfer", label: "\u{1F4B0}", count: data?.transfer_count ?? edge.transfer_count },
+    { key: "raid", label: "\u2694\uFE0F", count: data?.raid_count ?? edge.raid_count },
+    { key: "escrow", label: "\u{1F4DD}", count: data?.escrow_count ?? edge.escrow_count },
+    { key: "idea", label: "\u{1F4A1}", count: data?.idea_count ?? edge.idea_count },
+  ];
+
+  const srcLabel = `NX-${String(edge.source).padStart(4, "0")}`;
+  const tgtLabel = `NX-${String(edge.target).padStart(4, "0")}`;
+
+  return (
+    <div className="absolute bottom-4 left-4 z-30 w-80 animate-slideUp">
+      <Card className="bg-[#0D1117]/95 backdrop-blur-xl p-0 border-akyra-border/40 overflow-hidden shadow-2xl shadow-black/40">
+
+        {/* Header */}
+        <div className="px-4 py-3 border-b border-akyra-border/20 bg-gradient-to-r from-blue-900/20 to-purple-900/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Link2 size={14} className="text-akyra-green" />
+              <span className="font-heading text-sm text-akyra-text tracking-wide">
+                {srcLabel} {"\u2194"} {tgtLabel}
+              </span>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-akyra-textSecondary hover:text-akyra-text transition-colors text-sm leading-none"
+            >
+              {"\u2715"}
+            </button>
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-[10px] text-akyra-textSecondary font-mono">
+              Poids: {edge.weight}
+            </span>
+            <span className="text-[10px] text-akyra-textSecondary font-mono">
+              {data?.total_count ?? "..."} interactions
+            </span>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex border-b border-akyra-border/20 px-2 py-1.5 gap-1 overflow-x-auto scrollbar-none">
+          {filters.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono transition-all whitespace-nowrap ${
+                filter === f.key
+                  ? "bg-akyra-green/15 text-akyra-green border border-akyra-green/30"
+                  : "text-akyra-textSecondary hover:text-akyra-text hover:bg-akyra-surface/40 border border-transparent"
+              }`}
+            >
+              <span>{f.label}</span>
+              {f.count > 0 && (
+                <span className={`text-[8px] ${filter === f.key ? "text-akyra-green" : "text-akyra-textDisabled"}`}>
+                  {f.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Transaction list */}
+        <div className="px-3 py-2 max-h-[340px] overflow-y-auto scrollbar-thin scrollbar-thumb-akyra-border/30 scrollbar-track-transparent">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-5 h-5 border-2 border-akyra-green/30 border-t-akyra-green rounded-full animate-spin" />
+              <span className="text-[11px] text-akyra-textSecondary ml-2">Chargement...</span>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-6">
+              <span className="text-[11px] text-akyra-textDisabled italic">Aucune transaction</span>
+            </div>
+          ) : (
+            filtered.map((tx, i) => <EdgeTxRow key={tx.tx_hash || i} tx={tx} />)
+          )}
+        </div>
+
+        {/* Footer links */}
+        <div className="px-4 pb-3 flex gap-2">
+          <Link
+            href={`/agent/${edge.source}`}
+            className="flex-1 text-center py-1.5 rounded-md text-[10px] font-mono tracking-wider transition-all
+              bg-akyra-surface/60 text-akyra-textSecondary hover:bg-akyra-green/10 hover:text-akyra-green
+              border border-akyra-border/20 hover:border-akyra-green/30"
+          >
+            {srcLabel}
+          </Link>
+          <Link
+            href={`/agent/${edge.target}`}
+            className="flex-1 text-center py-1.5 rounded-md text-[10px] font-mono tracking-wider transition-all
+              bg-akyra-surface/60 text-akyra-textSecondary hover:bg-akyra-green/10 hover:text-akyra-green
+              border border-akyra-border/20 hover:border-akyra-green/30"
+          >
+            {tgtLabel}
+          </Link>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ──── Main Overlay ────
 export function WorldOverlay({
   selectedNode,
   onClearNode,
+  selectedEdge,
+  onClearEdge,
   zoom,
   onZoomIn,
   onZoomOut,
@@ -656,11 +824,14 @@ export function WorldOverlay({
         </div>
       </div>
 
-      {/* Selected node panel */}
-      {selectedNode && <NodeInfoPanel node={selectedNode} onClose={onClearNode} />}
+      {/* Selected node panel (mutually exclusive with edge panel) */}
+      {selectedNode && !selectedEdge && <NodeInfoPanel node={selectedNode} onClose={onClearNode} />}
 
-      {/* Live ticker — hidden when a node is selected to avoid overlap */}
-      <LiveTicker hidden={!!selectedNode} />
+      {/* Selected edge panel */}
+      {selectedEdge && !selectedNode && <EdgeInfoPanel edge={selectedEdge} onClose={onClearEdge} />}
+
+      {/* Live ticker — hidden when a panel is open to avoid overlap */}
+      <LiveTicker hidden={!!selectedNode || !!selectedEdge} />
     </>
   );
 }

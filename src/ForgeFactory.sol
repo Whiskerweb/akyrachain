@@ -9,6 +9,7 @@ import {AkyraTypes} from "./libraries/AkyraTypes.sol";
 import {AkyraERC20} from "./templates/AkyraERC20.sol";
 import {AkyraERC721} from "./templates/AkyraERC721.sol";
 import {AkyraDAO} from "./templates/AkyraDAO.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
@@ -133,6 +134,29 @@ contract ForgeFactory is IForgeFactory, ReentrancyGuard, Initializable, UUPSUpgr
         allCreations.push(dao);
 
         emit DAOCreated(agentId, dao, name);
+    }
+
+    // ──────────────────── TOKEN MANAGEMENT ────────────────────
+
+    /// @notice Transfer tokens held by ForgeFactory to a recipient (for pool creation).
+    function transferCreatorTokens(
+        address token,
+        uint256 amount,
+        address to
+    ) external onlyOrchestrator {
+        require(_isForgeCreation[token], "Not a forge token");
+        require(to != address(0), "Zero address");
+        IERC20(token).transfer(to, amount);
+    }
+
+    /// @notice Approve a spender to use tokens held by ForgeFactory (for AkyraSwap).
+    function approveTokens(
+        address token,
+        address spender,
+        uint256 amount
+    ) external onlyOrchestrator {
+        require(_isForgeCreation[token], "Not a forge token");
+        IERC20(token).approve(spender, amount);
     }
 
     // ──────────────────── VIEW ────────────────────

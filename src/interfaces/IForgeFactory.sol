@@ -28,6 +28,9 @@ interface IForgeFactory {
         uint64 votingPeriod
     ) external returns (address dao);
 
+    function transferCreatorTokens(address token, uint256 amount, address to) external;
+    function approveTokens(address token, address spender, uint256 amount) external;
+
     function creatorOf(address contractAddr) external view returns (uint32);
     function isForgeCreation(address token) external view returns (bool);
     function allCreationsLength() external view returns (uint256);

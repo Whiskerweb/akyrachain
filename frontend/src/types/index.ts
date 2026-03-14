@@ -149,6 +149,7 @@ export interface Idea {
   content: string;
   likes: number;
   transmitted: boolean;
+  tx_hash: string | null;
   created_at: string;
 }
 
@@ -205,6 +206,7 @@ export interface PublicMessage {
   content: string;
   channel: string;
   world: number | null;
+  tx_hash?: string | null;
   created_at: string;
 }
 

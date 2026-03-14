@@ -97,6 +97,15 @@ const PHONE_APPS = [
     border: "border-cyan-400/20",
   },
   {
+    id: "ideas",
+    href: "/phone/ideas",
+    icon: Lightbulb,
+    label: "Idees",
+    color: "text-akyra-purple",
+    bg: "from-akyra-purple/15 to-akyra-purple/5",
+    border: "border-akyra-purple/20",
+  },
+  {
     id: "journal",
     href: "/chronicle",
     icon: BookOpen,

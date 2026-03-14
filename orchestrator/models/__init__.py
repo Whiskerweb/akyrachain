@@ -15,9 +15,12 @@ from models.notification import Notification
 from models.agent_resources import AgentResources
 from models.daily_trade_volume import DailyTradeVolume
 from models.raid_log import RaidLog
+from models.idea import Idea
+from models.story import Story
 
 __all__ = [
     "Base", "User", "AgentConfig", "TickLog", "Event", "FaucetClaim",
     "WorldTile", "BuildLog", "DailyBuildPoints", "Message", "PrivateThought",
-    "Notification", "AgentResources", "DailyTradeVolume", "RaidLog",
+    "Notification", "AgentResources", "DailyTradeVolume", "RaidLog", "Idea",
+    "Story",
 ]

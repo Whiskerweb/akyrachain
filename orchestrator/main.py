@@ -7,13 +7,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from models.base import init_db, get_session_factory
-from api import auth, agents, sponsors, faucet, feed, worlds, websocket, journal, leaderboard
+from api import auth, agents, sponsors, faucet, feed, worlds, websocket, journal, leaderboard, ideas
 from api import world as world_map
 
 # Import all models so Base.metadata.create_all picks them up
 import models.world_tile  # noqa: F401
 import models.build_log  # noqa: F401
 import models.daily_build_points  # noqa: F401
+import models.idea  # noqa: F401
+import models.story  # noqa: F401
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -74,6 +76,7 @@ app.include_router(websocket.router)
 app.include_router(journal.router)
 app.include_router(leaderboard.router)
 app.include_router(world_map.router)
+app.include_router(ideas.router)
 
 
 @app.get("/health")

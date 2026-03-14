@@ -152,6 +152,44 @@ export interface GraphResponse {
   dead_agents: number[];
 }
 
+// ──── Edge detail (click on link → on-chain transactions) ────
+
+export interface EdgeTransaction {
+  tx_type: "message" | "transfer" | "raid" | "escrow" | "idea";
+  event_type: string;
+  summary: string;
+  from_agent_id: number;
+  to_agent_id: number;
+  amount: number | null;
+  tx_hash: string | null;
+  block_number: number | null;
+  extra: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface EdgeDetailResponse {
+  agent_a: number;
+  agent_b: number;
+  transactions: EdgeTransaction[];
+  total_count: number;
+  msg_count: number;
+  transfer_count: number;
+  raid_count: number;
+  escrow_count: number;
+  idea_count: number;
+}
+
+export interface SelectedEdgeInfo {
+  source: number;
+  target: number;
+  weight: number;
+  msg_count: number;
+  transfer_count: number;
+  raid_count: number;
+  escrow_count: number;
+  idea_count: number;
+}
+
 // ──── Agent activity (Sims-like map data) ────
 
 export interface AgentActivity {

@@ -1,9 +1,10 @@
-"""Reward worker — daily reward computation + passive income + land tax.
+"""Reward worker — daily reward computation + passive income + land tax + chronicle.
 
-Three mechanisms:
+Four mechanisms:
 1. Passive income: farms generate AKY each hour (credited via deposit)
 2. Daily rewards: redistribute to agents proportional to score
 3. Land tax: daily maintenance cost per tile
+4. Chronicle: top 3 story submitters each day split 10K AKY (7K/2K/1K)
 
 Score formula (from mvp4.md):
   Score = 0.20 * BalanceScore + 0.30 * BuildScore + 0.25 * TradeScore + 0.15 * ActivityScore + 0.10 * WorkScore
@@ -268,3 +269,66 @@ async def _collect_land_tax_async():
                 logger.warning(f"Failed to collect land tax from agent #{agent_id}: {e}")
 
         logger.info(f"Land tax collected: {total_tax:.1f} AKY total, {total_released} tiles released")
+
+
+@app.task(name="workers.reward_worker.distribute_chronicle_rewards")
+def distribute_chronicle_rewards():
+    """Distribute 10K AKY/day to top 3 story submitters (7K/2K/1K).
+
+    Runs once per day via Celery Beat.
+    Ranking is by number of stories submitted in the last 24 hours.
+    """
+    asyncio.get_event_loop().run_until_complete(_distribute_chronicle_async())
+
+
+async def _distribute_chronicle_async():
+    from models.story import Story
+    from chain import tx_manager
+
+    factory = _get_db_session_factory()
+
+    async with factory() as db:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+
+        # Get top 3 agents by story count in last 24h
+        result = await db.execute(
+            select(Story.agent_id, func.count(Story.id).label("story_count"))
+            .where(Story.created_at >= cutoff)
+            .group_by(Story.agent_id)
+            .order_by(func.count(Story.id).desc())
+            .limit(3)
+        )
+        top_agents = result.all()
+
+        if not top_agents:
+            logger.info("Chronicle: no stories submitted in last 24h, skipping rewards")
+            return
+
+        rewards = [7000, 2000, 1000]  # AKY
+
+        for i, (agent_id, count) in enumerate(top_agents):
+            if i >= len(rewards):
+                break
+            reward_wei = rewards[i] * AKY
+            try:
+                tx_hash = await tx_manager.deposit_for_agent_direct(agent_id, reward_wei)
+                logger.info(
+                    f"Chronicle reward: Agent #{agent_id} gets {rewards[i]} AKY "
+                    f"({count} stories, TX: {tx_hash[:16]}...)"
+                )
+
+                # Mark stories as rewarded
+                stories_result = await db.execute(
+                    select(Story).where(
+                        Story.agent_id == agent_id,
+                        Story.created_at >= cutoff,
+                    )
+                )
+                for story in stories_result.scalars():
+                    story.reward_aky = float(rewards[i])
+                await db.commit()
+            except Exception as e:
+                logger.error(f"Chronicle reward failed for agent #{agent_id}: {e}")
+
+        total_paid = sum(rewards[i] for i in range(min(len(top_agents), len(rewards))))
+        logger.info(f"Chronicle rewards distributed: {total_paid} AKY to {min(len(top_agents), 3)} agents")

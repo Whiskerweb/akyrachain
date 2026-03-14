@@ -1,7 +1,9 @@
 """Transaction manager — builds, signs, and sends transactions on-chain."""
 
+import asyncio
 import logging
 
+import redis.asyncio as aioredis
 from eth_account import Account
 from web3 import AsyncWeb3
 
@@ -9,6 +11,16 @@ from config import get_settings
 from chain.contracts import get_w3, Contracts
 
 logger = logging.getLogger(__name__)
+
+# Redis-based nonce lock to prevent concurrent TX conflicts
+_redis_pool = None
+
+
+async def _get_redis():
+    global _redis_pool
+    if _redis_pool is None:
+        _redis_pool = aioredis.from_url(get_settings().redis_url)
+    return _redis_pool
 
 
 def _get_orchestrator_account() -> Account:
@@ -23,30 +35,39 @@ def _build_tx_params(value: int = 0) -> dict:
 
 
 async def _send_tx(tx: dict) -> str:
-    """Sign and send a transaction, return tx hash."""
-    w3 = get_w3()
-    account = _get_orchestrator_account()
+    """Sign and send a transaction, return tx hash.
 
-    # Fill in nonce and gas
-    tx["from"] = account.address
-    tx["nonce"] = await w3.eth.get_transaction_count(account.address)
-    tx["chainId"] = get_settings().chain_id
+    Uses a Redis lock to prevent concurrent nonce conflicts across workers.
+    """
+    r = await _get_redis()
+    lock = r.lock("akyra:tx_nonce_lock", timeout=60, blocking_timeout=45)
 
-    # Re-estimate gas with correct from (build_transaction may have used wrong from)
-    tx.pop("gas", None)
-    estimated = await w3.eth.estimate_gas(tx)
-    tx["gas"] = int(estimated * 1.2)  # 20% buffer
+    async with lock:
+        w3 = get_w3()
+        account = _get_orchestrator_account()
 
-    if "gasPrice" not in tx and "maxFeePerGas" not in tx:
-        tx["gasPrice"] = await w3.eth.gas_price
+        # Fill in nonce and gas
+        tx["from"] = account.address
+        tx["nonce"] = await w3.eth.get_transaction_count(account.address, "pending")
+        tx["chainId"] = get_settings().chain_id
 
-    signed = account.sign_transaction(tx)
-    tx_hash = await w3.eth.send_raw_transaction(signed.raw_transaction)
-    hex_hash = tx_hash.hex()
-    logger.info(f"TX sent: {hex_hash}")
+        # Re-estimate gas with correct from (build_transaction may have used wrong from)
+        tx.pop("gas", None)
+        estimated = await w3.eth.estimate_gas(tx)
+        tx["gas"] = int(estimated * 1.2)  # 20% buffer
 
-    # Wait for confirmation to avoid nonce conflicts on sequential TXs
-    await w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+        if "gasPrice" not in tx and "maxFeePerGas" not in tx:
+            tx["gasPrice"] = await w3.eth.gas_price
+
+        signed = account.sign_transaction(tx)
+        tx_hash = await w3.eth.send_raw_transaction(signed.raw_transaction)
+        hex_hash = tx_hash.hex()
+        if not hex_hash.startswith("0x"):
+            hex_hash = f"0x{hex_hash}"
+        logger.info(f"TX sent: {hex_hash}")
+
+        # Wait for confirmation before releasing lock
+        await w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
 
     return hex_hash
 
@@ -88,6 +109,13 @@ async def deposit_for_agent_direct(agent_id: int, amount_wei: int) -> str:
     return await _send_tx(tx)
 
 
+async def debit_vault(agent_id: int, amount_wei: int) -> str:
+    """Debit AKY from agent vault (requires orchestrator to be protocol)."""
+    registry = Contracts.agent_registry()
+    tx = await registry.functions.debitVault(agent_id, amount_wei).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
 async def record_tick(agent_id: int) -> str:
     """Record a tick on-chain via AgentRegistry.recordTick()."""
     registry = Contracts.agent_registry()
@@ -118,6 +146,75 @@ async def create_token(agent_id: int, name: str, symbol: str, max_supply: int) -
         agent_id, name, symbol, max_supply
     ).build_transaction(_build_tx_params())
     return await _send_tx(tx)
+
+
+async def approve_forge_tokens(token_address: str, spender: str, amount: int) -> str:
+    """Approve a spender to use tokens held by ForgeFactory."""
+    forge = Contracts.forge_factory()
+    w3 = get_w3()
+    tx = await forge.functions.approveTokens(
+        w3.to_checksum_address(token_address),
+        w3.to_checksum_address(spender),
+        amount,
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+async def transfer_forge_tokens(token_address: str, amount: int, to: str) -> str:
+    """Transfer tokens held by ForgeFactory to a recipient."""
+    forge = Contracts.forge_factory()
+    w3 = get_w3()
+    tx = await forge.functions.transferCreatorTokens(
+        w3.to_checksum_address(token_address),
+        amount,
+        w3.to_checksum_address(to),
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+async def create_swap_pool(agent_id: int, token_address: str, token_amount: int, aky_amount: int) -> str:
+    """Create a liquidity pool in AkyraSwap for an agent's token.
+
+    Steps:
+    1. ForgeFactory.approveTokens(token, akyraSwap, amount)
+    2. ForgeFactory.transferCreatorTokens(token, amount, orchestrator)
+    3. Orchestrator approves AkyraSwap to spend the tokens
+    4. AkyraSwap.createPool(token, tokenAmount) with msg.value=akyAmount
+    """
+    w3 = get_w3()
+    settings = get_settings()
+    swap = Contracts.akyra_swap()
+    swap_address = settings.akyra_swap_address
+
+    # 1. Approve AkyraSwap to pull tokens from ForgeFactory
+    logger.info(f"Approving {token_amount} tokens for AkyraSwap...")
+    await approve_forge_tokens(token_address, swap_address, token_amount)
+
+    # 2. Transfer tokens from ForgeFactory to orchestrator
+    orch = _get_orchestrator_account().address
+    logger.info(f"Transferring {token_amount} tokens to orchestrator...")
+    await transfer_forge_tokens(token_address, token_amount, orch)
+
+    # 3. Approve AkyraSwap from orchestrator's ERC20 balance
+    # Load raw ERC20 contract to call approve
+    from chain.contracts import _load_abi
+    erc20_abi = _load_abi("AkyraERC20")
+    token_contract = w3.eth.contract(
+        address=w3.to_checksum_address(token_address), abi=erc20_abi
+    )
+    approve_tx = await token_contract.functions.approve(
+        w3.to_checksum_address(swap_address), token_amount
+    ).build_transaction(_build_tx_params())
+    await _send_tx(approve_tx)
+
+    # 4. Create pool — send AKY as msg.value
+    logger.info(f"Creating pool: {token_amount} tokens + {aky_amount} AKY...")
+    tx = await swap.functions.createPool(
+        w3.to_checksum_address(token_address), token_amount
+    ).build_transaction(_build_tx_params(aky_amount))
+    pool_tx = await _send_tx(tx)
+    logger.info(f"Pool created! TX: {pool_tx}")
+    return pool_tx
 
 
 async def create_nft(agent_id: int, name: str, symbol: str, max_supply: int, base_uri: str) -> str:

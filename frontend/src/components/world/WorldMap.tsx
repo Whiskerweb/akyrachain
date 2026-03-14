@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { useEffect, useRef, useCallback, useState } from "react";
-import type { GraphNode, GraphEdge, GraphToken, RecentTx } from "@/types/world";
+import type { GraphNode, GraphEdge, GraphToken, RecentTx, SelectedEdgeInfo } from "@/types/world";
 import { worldMapAPI } from "@/lib/api";
 
 // ──── Physics ────
@@ -33,7 +33,6 @@ const STAR_LAYERS = [
 ];
 const NEBULA_COUNT = 5;
 const NODE_BASE_R = 14;
-const NODE_MAX_R = 75;
 const POLL_MS = 5000;
 
 // ──── Emotion → color ────
@@ -173,7 +172,7 @@ interface TBubble {
 
 // ──── Helpers ────
 function calcRadius(v: number): number {
-  return Math.min(Math.max(NODE_BASE_R + Math.sqrt(Math.max(v, 1)) * 2.2, 10), NODE_MAX_R);
+  return Math.max(NODE_BASE_R + Math.sqrt(Math.max(v, 1)) * 2.2, 10);
 }
 function calcMass(v: number): number { return 1 + Math.sqrt(Math.max(v, 1)) * 0.3; }
 function emoColor(s: string | null): number { return s ? (EMO_COLORS[s] ?? DEFAULT_GLOW) : DEFAULT_GLOW; }
@@ -303,11 +302,12 @@ export interface SelectedNodeInfo {
 
 interface WorldMapProps {
   onNodeSelect?: (node: SelectedNodeInfo | null) => void;
+  onEdgeSelect?: (edge: SelectedEdgeInfo | null) => void;
   onZoomChange?: (zoom: number) => void;
   onStatsUpdate?: (stats: { totalAgents: number; aliveAgents: number; totalEdges: number; totalTokens: number }) => void;
 }
 
-export function WorldMap({ onNodeSelect, onZoomChange, onStatsUpdate }: WorldMapProps) {
+export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpdate }: WorldMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<unknown>(null);
 
@@ -327,6 +327,7 @@ export function WorldMap({ onNodeSelect, onZoomChange, onStatsUpdate }: WorldMap
   const panStart = useRef({ x: 0, y: 0 });
   const hovered = useRef<number | null>(null);
   const hoveredEdge = useRef<string | null>(null);
+  const selectedEdgeKey = useRef<string | null>(null);
   const selected = useRef<number | null>(null);
   const lastClick = useRef(0);
 
@@ -651,6 +652,8 @@ export function WorldMap({ onNodeSelect, onZoomChange, onStatsUpdate }: WorldMap
           const nd = nodesRef.current.get(hovered.current);
           if (nd) {
             selected.current = nd.id;
+            selectedEdgeKey.current = null;
+            onEdgeSelect?.(null); // clear edge selection
             onNodeSelect?.({
               agent_id: nd.id, vault_aky: nd.vault_aky, tier: nd.tier, world: nd.world,
               alive: nd.alive, emotional_state: nd.emotional_state,
@@ -670,9 +673,31 @@ export function WorldMap({ onNodeSelect, onZoomChange, onStatsUpdate }: WorldMap
               };
             }
           }
+        } else if (hoveredEdge.current !== null) {
+          // Edge clicked — find the edge data and emit
+          const edge = edgesRef.current.find(
+            e => ekey(e.source, e.target) === hoveredEdge.current
+          );
+          if (edge) {
+            selected.current = null;
+            selectedEdgeKey.current = hoveredEdge.current;
+            onNodeSelect?.(null);
+            onEdgeSelect?.({
+              source: edge.source,
+              target: edge.target,
+              weight: edge.weight,
+              msg_count: edge.msg_count,
+              transfer_count: edge.transfer_count,
+              raid_count: edge.raid_count,
+              escrow_count: edge.escrow_count,
+              idea_count: edge.idea_count,
+            });
+          }
         } else {
           selected.current = null;
+          selectedEdgeKey.current = null;
           onNodeSelect?.(null);
+          onEdgeSelect?.(null);
         }
       };
 
@@ -824,8 +849,9 @@ export function WorldMap({ onNodeSelect, onZoomChange, onStatsUpdate }: WorldMap
           const color = edgeDominantColor(e);
           const w = 2 + Math.log1p(e.weight) * 2;
 
-          // Highlight hovered edge
-          const isHovEdge = hoveredEdge.current === ekey(e.source, e.target);
+          // Highlight hovered or selected edge
+          const ek = ekey(e.source, e.target);
+          const isHovEdge = hoveredEdge.current === ek || selectedEdgeKey.current === ek;
           const hovBoost = isHovEdge ? 1.8 : 1;
 
           // Bezier control point

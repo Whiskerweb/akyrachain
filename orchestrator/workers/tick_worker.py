@@ -40,7 +40,11 @@ def _vault_to_tier(vault_wei: int) -> int:
 def _get_db_session_factory():
     """Create an async session factory for worker use."""
     settings = get_settings()
-    engine = create_async_engine(settings.database_url, echo=False)
+    engine = create_async_engine(
+        settings.database_url,
+        echo=False,
+        connect_args={"statement_cache_size": 0},
+    )
     return async_sessionmaker(engine, expire_on_commit=False)
 
 

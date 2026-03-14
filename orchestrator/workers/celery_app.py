@@ -53,5 +53,10 @@ app.conf.update(
             "task": "workers.reward_worker.collect_land_tax",
             "schedule": crontab(hour=0, minute=5),  # 5min after midnight
         },
+        # Chronicle rewards: top 3 story submitters split 10K AKY daily
+        "distribute-chronicle-rewards": {
+            "task": "workers.reward_worker.distribute_chronicle_rewards",
+            "schedule": crontab(hour=0, minute=10),  # 10min after midnight
+        },
     },
 )

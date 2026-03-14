@@ -431,6 +431,31 @@ class GraphEdge(BaseModel):
     net_aky_target: float = 0.0
 
 
+class EdgeTransaction(BaseModel):
+    tx_type: str
+    event_type: str
+    summary: str
+    from_agent_id: int
+    to_agent_id: int
+    amount: Optional[float] = None
+    tx_hash: Optional[str] = None
+    block_number: Optional[int] = None
+    extra: Optional[dict] = None
+    created_at: str
+
+
+class EdgeDetailResponse(BaseModel):
+    agent_a: int
+    agent_b: int
+    transactions: list[EdgeTransaction]
+    total_count: int
+    msg_count: int
+    transfer_count: int
+    raid_count: int
+    escrow_count: int
+    idea_count: int
+
+
 class GraphToken(BaseModel):
     creator_agent_id: int
     symbol: Optional[str] = None
@@ -757,4 +782,146 @@ async def get_world_graph(
         edges=edges,
         tokens=tokens,
         dead_agents=dead_ids,
+    )
+
+
+@router.get("/edge/{agent_a}/{agent_b}", response_model=EdgeDetailResponse)
+async def get_edge_detail(
+    agent_a: int,
+    agent_b: int,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all transactions between two agents, with tx_hash for blockchain verification."""
+    a, b = min(agent_a, agent_b), max(agent_a, agent_b)
+
+    # 1. Messages
+    msg_result = await db.execute(
+        text(
+            "SELECT from_agent_id, to_agent_id, content, tx_hash, created_at "
+            "FROM messages "
+            "WHERE (from_agent_id = :a AND to_agent_id = :b) "
+            "   OR (from_agent_id = :b AND to_agent_id = :a) "
+            "ORDER BY created_at DESC"
+        ),
+        {"a": a, "b": b},
+    )
+    txs: list[dict] = []
+    for r in msg_result.all():
+        txs.append({
+            "tx_type": "message",
+            "event_type": "send_message",
+            "summary": r[2][:200] if r[2] else "",
+            "from_agent_id": r[0],
+            "to_agent_id": r[1],
+            "amount": None,
+            "tx_hash": r[3],
+            "block_number": None,
+            "extra": None,
+            "created_at": r[4],
+        })
+
+    # 2. Events (transfers, escrows, ideas)
+    evt_result = await db.execute(
+        text(
+            "SELECT event_type, summary, agent_id, target_agent_id, "
+            "       data, tx_hash, block_number, created_at "
+            "FROM events "
+            "WHERE ((agent_id = :a AND target_agent_id = :b) "
+            "    OR (agent_id = :b AND target_agent_id = :a)) "
+            "  AND event_type IN ('transfer', 'create_escrow', 'escrow_created', "
+            "                     'idea_liked', 'idea_transmitted', 'like_idea') "
+            "ORDER BY created_at DESC"
+        ),
+        {"a": a, "b": b},
+    )
+    for r in evt_result.all():
+        et = r[0]
+        if et == "transfer":
+            tx_type = "transfer"
+        elif et in ("create_escrow", "escrow_created"):
+            tx_type = "escrow"
+        else:
+            tx_type = "idea"
+        data = r[4] if r[4] else {}
+        amount = None
+        if isinstance(data, dict):
+            amount = data.get("amount")
+        txs.append({
+            "tx_type": tx_type,
+            "event_type": et,
+            "summary": r[1] or "",
+            "from_agent_id": r[2],
+            "to_agent_id": r[3],
+            "amount": float(amount) if amount is not None else None,
+            "tx_hash": r[5],
+            "block_number": r[6],
+            "extra": data if isinstance(data, dict) and data else None,
+            "created_at": r[7],
+        })
+
+    # 3. Raids
+    raid_result = await db.execute(
+        text(
+            "SELECT attacker_agent_id, defender_agent_id, result, "
+            "       tiles_captured, aky_cost, aky_gained, tx_hash, created_at "
+            "FROM raids "
+            "WHERE (attacker_agent_id = :a AND defender_agent_id = :b) "
+            "   OR (attacker_agent_id = :b AND defender_agent_id = :a) "
+            "ORDER BY created_at DESC"
+        ),
+        {"a": a, "b": b},
+    )
+    for r in raid_result.all():
+        net = (r[5] or 0) - (r[4] or 0)
+        txs.append({
+            "tx_type": "raid",
+            "event_type": "raid",
+            "summary": f"Raid: {r[2]} ({r[3]} tiles)",
+            "from_agent_id": r[0],
+            "to_agent_id": r[1],
+            "amount": net,
+            "tx_hash": r[6],
+            "block_number": None,
+            "extra": {"result": r[2], "tiles_captured": r[3], "aky_cost": r[4], "aky_gained": r[5]},
+            "created_at": r[7],
+        })
+
+    # Sort all by date desc, count types
+    txs.sort(key=lambda t: t["created_at"] or datetime.min, reverse=True)
+    total = len(txs)
+    mc = sum(1 for t in txs if t["tx_type"] == "message")
+    tc = sum(1 for t in txs if t["tx_type"] == "transfer")
+    rc = sum(1 for t in txs if t["tx_type"] == "raid")
+    ec = sum(1 for t in txs if t["tx_type"] == "escrow")
+    ic = sum(1 for t in txs if t["tx_type"] == "idea")
+
+    # Paginate
+    page = txs[offset:offset + limit]
+
+    return EdgeDetailResponse(
+        agent_a=a,
+        agent_b=b,
+        transactions=[
+            EdgeTransaction(
+                tx_type=t["tx_type"],
+                event_type=t["event_type"],
+                summary=t["summary"],
+                from_agent_id=t["from_agent_id"],
+                to_agent_id=t["to_agent_id"],
+                amount=t["amount"],
+                tx_hash=t["tx_hash"],
+                block_number=t["block_number"],
+                extra=t["extra"],
+                created_at=t["created_at"].isoformat() if hasattr(t["created_at"], "isoformat") else str(t["created_at"]),
+            )
+            for t in page
+        ],
+        total_count=total,
+        msg_count=mc,
+        transfer_count=tc,
+        raid_count=rc,
+        escrow_count=ec,
+        idea_count=ic,
     )

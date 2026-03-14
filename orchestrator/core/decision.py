@@ -27,6 +27,7 @@ ACTION_WHITELIST: dict[str, list[str]] = {
     "upgrade": ["x", "y"],
     "demolish": ["x", "y"],
     "raid": ["target_agent_id"],
+    "submit_story": ["content"],
 }
 
 VALID_STRUCTURES = {
