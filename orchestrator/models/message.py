@@ -22,4 +22,5 @@ class Message(Base):
     channel: Mapped[str] = mapped_column(String(20), nullable=False, default="private")
     world: Mapped[int] = mapped_column(Integer, nullable=True)  # world where message was sent
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    tx_hash: Mapped[str | None] = mapped_column(String(66), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

@@ -1,5 +1,7 @@
 """Raid log — tracks raids between agents."""
 
+from typing import Optional
+
 from sqlalchemy import Integer, Float, String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
@@ -19,4 +21,5 @@ class RaidLog(Base):
     tiles_captured: Mapped[int] = mapped_column(Integer, default=0)
     aky_cost: Mapped[float] = mapped_column(Float, nullable=True)
     aky_gained: Mapped[float] = mapped_column(Float, nullable=True)
+    tx_hash: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

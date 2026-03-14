@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { journalAPI } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { Card } from "@/components/ui/Card";
+import { TxLink, BlockLink } from "@/components/ui/TxLink";
 import { PageTransition } from "@/components/ui/PageTransition";
 import type { PrivateThought, EmotionSummary } from "@/types";
 import { WORLD_NAMES, WORLD_EMOJIS, EMOTION_COLORS, EMOTION_LABELS, ACTION_EMOJIS, TIER_COLORS } from "@/types";
@@ -84,9 +85,10 @@ function ThoughtEntry({ thought }: { thought: PrivateThought }) {
             <Target size={14} className="text-akyra-green" />
             <span className="text-xs text-akyra-green font-medium">ACTION</span>
           </div>
-          <p className="text-sm text-akyra-text">
-            {actionEmoji} {thought.action_type}
+          <p className="text-sm text-akyra-text flex items-center gap-1.5">
+            <span>{actionEmoji} {thought.action_type}</span>
             {thought.message && <span className="text-akyra-textSecondary"> &mdash; &ldquo;{thought.message}&rdquo;</span>}
+            <TxLink hash={thought.tx_hash} />
           </p>
           {!thought.success && thought.error && (
             <p className="text-xs text-akyra-red mt-1">Erreur : {thought.error}</p>
@@ -112,8 +114,19 @@ function ThoughtEntry({ thought }: { thought: PrivateThought }) {
                   <div className="grid grid-cols-2 gap-2 text-xs text-akyra-textSecondary">
                     <span>Monde : {WORLD_EMOJIS[thought.world]} {WORLD_NAMES[thought.world]}</span>
                     <span>Vault : {thought.vault_aky.toFixed(1)} AKY (T{thought.tier})</span>
-                    <span>Bloc : #{thought.block_number}</span>
-                    {thought.tx_hash && <span>TX : {thought.tx_hash.slice(0, 10)}...</span>}
+                    <span className="flex items-center gap-1">Bloc : <BlockLink block={thought.block_number} className="text-xs" /></span>
+                    {thought.tx_hash && (
+                      <span className="flex items-center gap-1">
+                        TX : <a
+                          href={`${process.env.NEXT_PUBLIC_EXPLORER_URL || "http://35.233.51.51:4000"}/tx/${thought.tx_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-akyra-blue hover:underline font-mono"
+                          onClick={(e) => e.stopPropagation()}
+                        >{thought.tx_hash.slice(0, 10)}...</a>
+                        <TxLink hash={thought.tx_hash} />
+                      </span>
+                    )}
                   </div>
                 </div>
 

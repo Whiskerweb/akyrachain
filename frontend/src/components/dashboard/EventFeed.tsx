@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/Card";
+import { TxLink, BlockLink } from "@/components/ui/TxLink";
 import { agentName, timeAgo } from "@/lib/utils";
 import { ACTION_EMOJIS, WORLD_NAMES } from "@/types";
 import type { AkyraEvent } from "@/types";
@@ -53,6 +54,8 @@ function EventItem({ event }: { event: AkyraEvent }) {
           <span className="text-akyra-textDisabled text-xs">
             {timeAgo(event.created_at)}
           </span>
+          {event.block_number && <BlockLink block={event.block_number} className="text-xs" />}
+          <TxLink hash={event.tx_hash} />
         </div>
       </div>
     </div>

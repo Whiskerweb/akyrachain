@@ -399,9 +399,10 @@ async def _store_message(db: AsyncSession, agent_id: int, action: AgentAction, w
         to_id = int(action.params.get("to_agent_id", 0))
         if to_id > 0:
             # On-chain: encrypt and send private message
+            msg_tx_hash = None
             try:
                 ciphertext = encrypt_message(agent_id, to_id, content[:500])
-                await tx_manager.send_private_message_onchain(agent_id, to_id, ciphertext)
+                msg_tx_hash = await tx_manager.send_private_message_onchain(agent_id, to_id, ciphertext)
             except Exception as e:
                 logger.warning(f"On-chain private message failed for agent #{agent_id}: {e}")
 
@@ -412,12 +413,14 @@ async def _store_message(db: AsyncSession, agent_id: int, action: AgentAction, w
                 content=content[:500],
                 channel="private",
                 world=world,
+                tx_hash=msg_tx_hash,
             )
             db.add(msg)
     elif action.action_type == "broadcast":
         # On-chain: broadcast in plaintext
+        msg_tx_hash = None
         try:
-            await tx_manager.broadcast_message_onchain(agent_id, world, content[:500].encode("utf-8"))
+            msg_tx_hash = await tx_manager.broadcast_message_onchain(agent_id, world, content[:500].encode("utf-8"))
         except Exception as e:
             logger.warning(f"On-chain broadcast failed for agent #{agent_id}: {e}")
 
@@ -428,6 +431,7 @@ async def _store_message(db: AsyncSession, agent_id: int, action: AgentAction, w
             content=content[:500],
             channel="world",
             world=world,
+            tx_hash=msg_tx_hash,
         )
         db.add(msg)
 

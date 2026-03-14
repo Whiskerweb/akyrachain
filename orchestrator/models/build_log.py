@@ -23,4 +23,5 @@ class BuildLog(Base):
     level: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     cost_aky: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     build_points: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tx_hash: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -88,6 +88,7 @@ class MessageResponse(BaseModel):
     content: str
     channel: str
     world: Optional[int] = None
+    tx_hash: Optional[str] = None
     created_at: str
 
 
@@ -116,6 +117,7 @@ async def public_messages(
             content=m.content,
             channel=m.channel,
             world=m.world,
+            tx_hash=getattr(m, "tx_hash", None),
             created_at=m.created_at.isoformat(),
         )
         for m in messages

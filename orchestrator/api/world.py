@@ -64,6 +64,7 @@ class BuildLogResponse(BaseModel):
     level: Optional[int] = None
     cost_aky: Optional[float] = None
     build_points: int
+    tx_hash: Optional[str] = None
     created_at: str
 
 
@@ -249,6 +250,7 @@ async def get_build_log(
             level=l.level,
             cost_aky=l.cost_aky,
             build_points=l.build_points,
+            tx_hash=getattr(l, "tx_hash", None),
             created_at=l.created_at.isoformat(),
         )
         for l in logs

@@ -87,6 +87,7 @@ async def _log_build(
     level: int | None = None,
     cost_aky: float | None = None,
     build_points: int = 0,
+    tx_hash: str | None = None,
 ) -> None:
     """Log a build action and update daily build points."""
     log = BuildLog(
@@ -98,6 +99,7 @@ async def _log_build(
         level=level,
         cost_aky=cost_aky,
         build_points=build_points,
+        tx_hash=tx_hash,
     )
     db.add(log)
 
@@ -211,7 +213,7 @@ async def claim_tile(agent_id: int, x: int, y: int, db: AsyncSession) -> Executi
     tile.owner_agent_id = agent_id
     tile.claimed_at = datetime.utcnow()
 
-    await _log_build(db, agent_id, "claim", x, y, cost_aky=cost_aky, build_points=BUILD_POINTS["claim"])
+    await _log_build(db, agent_id, "claim", x, y, cost_aky=cost_aky, build_points=BUILD_POINTS["claim"], tx_hash=tx_hash)
     await db.commit()
 
     return ExecutionResult(success=True, tx_hash=tx_hash)
@@ -311,7 +313,7 @@ async def build_structure(agent_id: int, x: int, y: int, structure: str, db: Asy
 
     rarity = BUILD_POINTS.get("rarity", {}).get(structure, 1) if isinstance(BUILD_POINTS.get("rarity"), dict) else 1
     bp = BUILD_POINTS["build"] * rarity
-    await _log_build(db, agent_id, "build", x, y, structure=structure, level=1, cost_aky=cost_aky, build_points=bp)
+    await _log_build(db, agent_id, "build", x, y, structure=structure, level=1, cost_aky=cost_aky, build_points=bp, tx_hash=tx_hash)
     await db.commit()
 
     return ExecutionResult(success=True, tx_hash=tx_hash)
@@ -382,7 +384,7 @@ async def upgrade_structure(agent_id: int, x: int, y: int, db: AsyncSession) -> 
     await _log_build(
         db, agent_id, "upgrade", x, y,
         structure=tile.structure, level=tile.structure_level,
-        cost_aky=cost_aky, build_points=bp,
+        cost_aky=cost_aky, build_points=bp, tx_hash=tx_hash,
     )
     await db.commit()
 
@@ -430,7 +432,7 @@ async def demolish_structure(agent_id: int, x: int, y: int, db: AsyncSession) ->
     tile.structure_level = 0
     tile.last_built_at = None
 
-    await _log_build(db, agent_id, "demolish", x, y, structure=old_structure, build_points=0)
+    await _log_build(db, agent_id, "demolish", x, y, structure=old_structure, build_points=0, tx_hash=tx_hash)
     await db.commit()
 
     return ExecutionResult(success=True, tx_hash=tx_hash)
@@ -539,7 +541,7 @@ async def raid_territory(agent_id: int, target_agent_id: int, db: AsyncSession) 
 
         await _log_build(
             db, agent_id, "raid", target_tile.x, target_tile.y,
-            structure=old_structure, cost_aky=raid_cost_aky, build_points=BUILD_POINTS["claim"],
+            structure=old_structure, cost_aky=raid_cost_aky, build_points=BUILD_POINTS["claim"], tx_hash=tx_hash,
         )
         await db.commit()
 
@@ -547,7 +549,7 @@ async def raid_territory(agent_id: int, target_agent_id: int, db: AsyncSession) 
     else:
         await _log_build(
             db, agent_id, "raid", target_tile.x, target_tile.y,
-            cost_aky=raid_cost_aky, build_points=0,
+            cost_aky=raid_cost_aky, build_points=0, tx_hash=tx_hash,
         )
         await db.commit()
 
@@ -758,7 +760,7 @@ async def spawn_agent(agent_id: int, db: AsyncSession) -> tuple[int, int]:
     tile = result.scalar_one_or_none()
     if tile:
         try:
-            await tx_manager.claim_tile_onchain(agent_id, tile.world_zone, x, y, 0)
+            spawn_tx_hash = await tx_manager.claim_tile_onchain(agent_id, tile.world_zone, x, y, 0)
         except Exception as e:
             logger.error(f"On-chain spawn claim failed for agent #{agent_id}: {e}")
             raise
@@ -766,7 +768,7 @@ async def spawn_agent(agent_id: int, db: AsyncSession) -> tuple[int, int]:
         # DB cache
         tile.owner_agent_id = agent_id
         tile.claimed_at = datetime.utcnow()
-        await _log_build(db, agent_id, "claim", x, y, cost_aky=0, build_points=BUILD_POINTS["claim"])
+        await _log_build(db, agent_id, "claim", x, y, cost_aky=0, build_points=BUILD_POINTS["claim"], tx_hash=spawn_tx_hash)
         await db.commit()
 
     return (x, y)

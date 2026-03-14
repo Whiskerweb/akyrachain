@@ -10,6 +10,7 @@ import { agentsAPI, feedAPI, journalAPI } from "@/lib/api";
 import { CONTRACTS, AGENT_REGISTRY_ABI } from "@/lib/contracts";
 import { Header } from "@/components/layout/Header";
 import { Card } from "@/components/ui/Card";
+import { TxLink, BlockLink } from "@/components/ui/TxLink";
 import { PageTransition } from "@/components/ui/PageTransition";
 import { PixelProgressBar } from "@/components/ui/PixelProgressBar";
 import type { Agent, AkyraEvent, PrivateThought } from "@/types";
@@ -496,9 +497,10 @@ export default function AgentProfilePage({ params }: { params: Promise<{ id: str
                       <span className="text-sm flex-shrink-0">{ACTION_EMOJIS[event.event_type] || "\u{1F504}"}</span>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-akyra-text leading-snug">{event.summary}</p>
-                        <p className="text-[10px] text-akyra-textDisabled mt-0.5">
+                        <p className="text-[10px] text-akyra-textDisabled mt-0.5 flex items-center gap-1">
                           {formatDistanceToNow(new Date(event.created_at), { addSuffix: true, locale: fr })}
-                          {event.block_number && ` \u00b7 #${event.block_number}`}
+                          {event.block_number && <> · <BlockLink block={event.block_number} className="text-[10px]" /></>}
+                          <TxLink hash={event.tx_hash} />
                         </p>
                       </div>
                     </div>
