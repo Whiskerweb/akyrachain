@@ -3,7 +3,7 @@
 import { Header } from "@/components/layout/Header";
 import { useQuery } from "@tanstack/react-query";
 import { worldMapAPI } from "@/lib/api";
-import type { GraphResponse, GraphToken } from "@/types/world";
+import type { GraphResponse } from "@/types/world";
 import { agentName, timeAgo } from "@/lib/utils";
 import {
   Sparkles,
@@ -16,76 +16,13 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { useState, useMemo } from "react";
 
-/* ── Sparkline SVG ─────────────────────────────────────────────── */
+/* ── Flat Sparkline (no trades) ────────────────────────────────── */
 
-function generateSparkData(seed: number, points: number = 20): number[] {
-  // Deterministic pseudo-random from seed so each token gets a stable line
-  let s = seed;
-  const next = () => {
-    s = (s * 16807 + 7) % 2147483647;
-    return (s % 1000) / 1000;
-  };
-  const data: number[] = [];
-  let value = 40 + next() * 20;
-  for (let i = 0; i < points; i++) {
-    value += (next() - 0.45) * 12; // slight upward bias
-    value = Math.max(5, Math.min(95, value));
-    data.push(value);
-  }
-  return data;
-}
-
-function Sparkline({
-  seed,
-  positive,
-  width = 80,
-  height = 28,
-}: {
-  seed: number;
-  positive: boolean;
-  width?: number;
-  height?: number;
-}) {
-  const points = generateSparkData(seed);
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = max - min || 1;
-  const coords = points
-    .map((v, i) => {
-      const x = (i / (points.length - 1)) * width;
-      const y = height - ((v - min) / range) * (height - 4) - 2;
-      return `${x},${y}`;
-    })
-    .join(" ");
-
-  const color = positive ? "#22c55e" : "#ef4444";
-  const colorFaded = positive
-    ? "rgba(34,197,94,0.12)"
-    : "rgba(239,68,68,0.12)";
-
-  // area fill path
-  const lastX = width;
-  const areaPath = `M0,${height} L${coords
-    .split(" ")
-    .map((c) => `L${c}`)
-    .join(" ")} L${lastX},${height} Z`;
-
+function FlatSparkline({ width = 48, height = 20 }: { width?: number; height?: number }) {
+  const y = height / 2;
   return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      className="shrink-0"
-    >
-      <path d={areaPath} fill={colorFaded} />
-      <polyline
-        points={coords}
-        fill="none"
-        stroke={color}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="shrink-0">
+      <line x1={0} y1={y} x2={width} y2={y} stroke="rgba(255,255,255,0.1)" strokeWidth={1.5} strokeLinecap="round" />
     </svg>
   );
 }
@@ -177,12 +114,6 @@ export default function ScreenerPage() {
   }, [tokens, search, sortKey, sortDir]);
 
   const totalTrades = tokens.reduce((s, t) => s + t.trade_count, 0);
-
-  // Determine if a token trend is "positive" based on a deterministic hash
-  const isPositive = (t: GraphToken) => {
-    const seed = t.creator_agent_id * 31 + (t.symbol?.charCodeAt(0) || 0);
-    return seed % 3 !== 0; // ~66% positive bias
-  };
 
   const SortIcon = ({ col }: { col: SortKey }) => {
     if (sortKey !== col)
@@ -289,7 +220,7 @@ export default function ScreenerPage() {
               onClick={() => toggleSort("trend")}
               className={`${headerClass} justify-end`}
             >
-              Trend <SortIcon col="trend" />
+              Status <SortIcon col="trend" />
             </button>
           </div>
 
@@ -312,10 +243,7 @@ export default function ScreenerPage() {
                         t.creator_agent_id === token.creator_agent_id &&
                         t.symbol === token.symbol
                     ) + 1;
-                const pos = isPositive(token);
-                const trendPct =
-                  ((token.creator_agent_id * 7 + token.trade_count * 3) % 40) -
-                  (pos ? 0 : 20);
+                const hasTrades = token.trade_count > 0;
 
                 return (
                   <motion.div
@@ -364,25 +292,22 @@ export default function ScreenerPage() {
                         {token.trade_count.toLocaleString()}
                       </span>
 
-                      {/* Trend sparkline + pct */}
+                      {/* Status */}
                       <div className="flex items-center justify-end gap-1.5">
-                        <Sparkline
-                          seed={
-                            token.creator_agent_id * 100 +
-                            (token.symbol?.charCodeAt(0) || 0)
-                          }
-                          positive={pos}
-                          width={48}
-                          height={20}
-                        />
-                        <span
-                          className={`text-[9px] font-mono font-bold min-w-[2rem] text-right ${
-                            pos ? "text-green-400" : "text-red-400"
-                          }`}
-                        >
-                          {pos ? "+" : ""}
-                          {trendPct}%
-                        </span>
+                        {hasTrades ? (
+                          <>
+                            <span className="text-[9px] font-mono font-bold text-green-400 text-right">
+                              {token.trade_count} trades
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <FlatSparkline width={32} height={16} />
+                            <span className="text-[9px] font-mono text-akyra-textDisabled/40 text-right">
+                              —
+                            </span>
+                          </>
+                        )}
                       </div>
                     </Link>
                   </motion.div>

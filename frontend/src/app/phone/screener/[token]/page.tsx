@@ -3,168 +3,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { worldMapAPI, feedAPI } from "@/lib/api";
-import type { GraphResponse, GraphToken } from "@/types/world";
+import type { GraphResponse } from "@/types/world";
 import type { AkyraEvent } from "@/types";
 import { agentName, timeAgo } from "@/lib/utils";
 import { Header } from "@/components/layout/Header";
 import { Card } from "@/components/ui/Card";
-import { ArrowLeft, Sparkles, TrendingUp, Clock, Users, ArrowLeftRight } from "lucide-react";
+import { ArrowLeft, Sparkles, Clock, Users, ArrowLeftRight, BarChart3 } from "lucide-react";
 import { motion } from "framer-motion";
 
-/* ── Deterministic PRNG ──────────────────────────────────────── */
-
-function seededRandom(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 16807 + 7) % 2147483647;
-    return (s % 1000) / 1000;
-  };
-}
-
-/* ── Chart data generator (200 points) ───────────────────────── */
-
-function generateChartData(seed: number, points: number = 200): number[] {
-  const next = seededRandom(seed);
-  const data: number[] = [];
-  let value = 0.3 + next() * 0.4; // start between 0.3-0.7
-  for (let i = 0; i < points; i++) {
-    value += (next() - 0.45) * 0.06;
-    value = Math.max(0.05, Math.min(0.95, value));
-    data.push(value);
-  }
-  return data;
-}
-
-/* ── Deterministic market cap from seed ──────────────────────── */
-
-function estimatedMarketCap(seed: number): string {
-  const next = seededRandom(seed * 37 + 11);
-  const base = 1000 + next() * 99000; // 1K - 100K
-  if (base >= 10000) return `${(base / 1000).toFixed(1)}K`;
-  return `${Math.round(base).toLocaleString()}`;
-}
-
-/* ── Determine trend direction (same logic as screener) ──────── */
-
-function isPositive(t: GraphToken): boolean {
-  const seed = t.creator_agent_id * 31 + (t.symbol?.charCodeAt(0) || 0);
-  return seed % 3 !== 0;
-}
-
-/* ── Area Chart SVG ──────────────────────────────────────────── */
-
-function AreaChart({
-  seed,
-  positive,
-  width = 600,
-  height = 200,
-}: {
-  seed: number;
-  positive: boolean;
-  width?: number;
-  height?: number;
-}) {
-  const data = generateChartData(seed);
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 0.01;
-
-  const padding = { top: 8, bottom: 8, left: 48, right: 8 };
-  const chartW = width - padding.left - padding.right;
-  const chartH = height - padding.top - padding.bottom;
-
-  // Build polyline coords
-  const coords = data.map((v, i) => {
-    const x = padding.left + (i / (data.length - 1)) * chartW;
-    const y = padding.top + chartH - ((v - min) / range) * chartH;
-    return { x, y };
-  });
-
-  const polylineStr = coords.map((c) => `${c.x},${c.y}`).join(" ");
-
-  // Area fill path
-  const areaPath = `M${padding.left},${padding.top + chartH} ${coords
-    .map((c) => `L${c.x},${c.y}`)
-    .join(" ")} L${coords[coords.length - 1].x},${padding.top + chartH} Z`;
-
-  const strokeColor = positive ? "#22c55e" : "#ef4444";
-  const fillColor = positive ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)";
-  const gradientId = `grad-${seed}`;
-
-  // Y-axis labels (5 ticks)
-  const yTicks = Array.from({ length: 5 }, (_, i) => {
-    const frac = i / 4;
-    const val = min + frac * range;
-    const y = padding.top + chartH - frac * chartH;
-    return { val, y };
-  });
-
-  // Format price label
-  const formatPrice = (v: number) => {
-    const price = v * 100; // scale to a readable price
-    if (price >= 10) return price.toFixed(1);
-    if (price >= 1) return price.toFixed(2);
-    return price.toFixed(3);
-  };
-
-  return (
-    <svg
-      width="100%"
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      className="w-full"
-    >
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={strokeColor} stopOpacity={0.15} />
-          <stop offset="100%" stopColor={strokeColor} stopOpacity={0.01} />
-        </linearGradient>
-      </defs>
-
-      {/* Grid lines */}
-      {yTicks.map((tick, i) => (
-        <line
-          key={i}
-          x1={padding.left}
-          y1={tick.y}
-          x2={width - padding.right}
-          y2={tick.y}
-          stroke="rgba(255,255,255,0.04)"
-          strokeWidth={1}
-        />
-      ))}
-
-      {/* Y-axis labels */}
-      {yTicks.map((tick, i) => (
-        <text
-          key={i}
-          x={padding.left - 6}
-          y={tick.y + 3}
-          textAnchor="end"
-          fill="rgba(255,255,255,0.25)"
-          fontSize={9}
-          fontFamily="monospace"
-        >
-          {formatPrice(tick.val)}
-        </text>
-      ))}
-
-      {/* Area fill */}
-      <path d={areaPath} fill={`url(#${gradientId})`} />
-
-      {/* Line */}
-      <polyline
-        points={polylineStr}
-        fill="none"
-        stroke={strokeColor}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 /* ── Activity item ───────────────────────────────────────────── */
 
@@ -248,16 +94,7 @@ export default function TokenDetailPage() {
     return false;
   });
 
-  const chartSeed = token
-    ? token.creator_agent_id * 100 + (token.symbol?.charCodeAt(0) || 0)
-    : 42;
-  const positive = token ? isPositive(token) : true;
-  const trendPct = token
-    ? ((token.creator_agent_id * 7 + token.trade_count * 3) % 40) -
-      (positive ? 0 : 20)
-    : 0;
-
-  const mcap = token ? estimatedMarketCap(token.creator_agent_id) : "---";
+  const hasTrades = token ? token.trade_count > 0 : false;
   const age = token ? timeAgo(token.created_at) : "---";
 
   // Loading skeleton
@@ -352,36 +189,35 @@ export default function TokenDetailPage() {
             </div>
           </div>
 
-          {/* Trend badge */}
+          {/* Trades badge */}
           <div
             className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-mono font-bold ${
-              positive
+              hasTrades
                 ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                : "bg-red-500/10 text-red-400 border border-red-500/20"
+                : "bg-akyra-surface/30 text-akyra-textDisabled/60 border border-akyra-border/20"
             }`}
           >
-            <TrendingUp size={10} />
-            {positive ? "+" : ""}
-            {trendPct}%
+            <ArrowLeftRight size={10} />
+            {hasTrades ? `${token.trade_count} trades` : "No trades"}
           </div>
         </div>
 
-        {/* ── Chart ─────────────────────────────────────────── */}
+        {/* ── Chart placeholder ────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
           <Card className="p-0 overflow-hidden mb-4">
-            <div className="px-3 pt-3 pb-1 flex items-center justify-between">
-              <span className="text-[10px] text-akyra-textDisabled/60 font-mono uppercase tracking-wider">
-                Price Chart
-              </span>
-              <span className="text-[9px] text-akyra-textDisabled/40 font-mono">
-                200 points
-              </span>
+            <div className="py-10 text-center">
+              <BarChart3 size={20} className="text-akyra-textDisabled/20 mx-auto mb-2" />
+              <p className="text-akyra-textDisabled text-[11px] font-mono">
+                {hasTrades ? "Données de prix bientôt disponibles" : "Aucun trade enregistré"}
+              </p>
+              <p className="text-akyra-textDisabled/30 text-[9px] mt-1 font-mono">
+                {hasTrades ? "Le graphique sera disponible quand les pools auront de la liquidité" : "Ce token n'a pas encore été échangé"}
+              </p>
             </div>
-            <AreaChart seed={chartSeed} positive={positive} />
           </Card>
         </motion.div>
 
@@ -406,13 +242,13 @@ export default function TokenDetailPage() {
 
           <Card className="p-3">
             <div className="flex items-center gap-2 mb-1.5">
-              <TrendingUp size={12} className="text-akyra-purple" />
+              <BarChart3 size={12} className="text-akyra-purple" />
               <span className="text-[9px] text-akyra-textDisabled/60 font-mono uppercase tracking-wider">
-                Est. MCap
+                Liquidité
               </span>
             </div>
-            <p className="text-lg text-akyra-text font-mono font-bold">
-              {mcap} AKY
+            <p className="text-lg text-akyra-textDisabled/60 font-mono font-bold">
+              N/A
             </p>
           </Card>
 
@@ -458,6 +294,11 @@ export default function TokenDetailPage() {
             <ArrowLeftRight size={14} />
             Trade {token.symbol || "Token"}
           </Link>
+          {!hasTrades && (
+            <p className="text-[9px] text-akyra-textDisabled/40 font-mono text-center mt-1.5">
+              Liquidité potentiellement absente — le pool peut ne pas exister
+            </p>
+          )}
         </motion.div>
 
         {/* ── Live Activity ─────────────────────────────────── */}

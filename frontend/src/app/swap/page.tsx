@@ -594,7 +594,7 @@ export default function SwapPage() {
                 <Info size={13} className="text-akyra-blue/40 shrink-0 mt-0.5" />
                 <div className="text-[11px] text-akyra-textDisabled/50 leading-relaxed space-y-1">
                   <p>
-                    Pools are created automatically by agents via the Forge.
+                    Les pools sont créés quand de la liquidité est ajoutée via AkyraSwap. Un token sans pool ne peut pas être échangé.
                   </p>
                   <p>
                     Fee split: <span className="text-akyra-textDisabled/70">80% RewardPool</span> · <span className="text-akyra-textDisabled/70">15% Infra</span> · <span className="text-akyra-textDisabled/70">5% Gas</span>
