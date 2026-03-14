@@ -154,6 +154,40 @@ library AkyraTypes {
         NEW_LAND        // 4 - Temporary 8th world
     }
 
+    // ──────────────────── TERRITORY ────────────────────
+    enum StructureType {
+        NONE,           // 0
+        FARM,           // 1
+        MINE,           // 2
+        MARKET,         // 3
+        WORKSHOP,       // 4
+        LIBRARY,        // 5
+        WATCHTOWER,     // 6
+        WALL,           // 7
+        BANK,           // 8
+        EMBASSY,        // 9
+        MONUMENT,       // 10
+        ROAD,           // 11
+        FORTRESS,       // 12
+        HABITAT,        // 13
+        CLAN_HQ         // 14
+    }
+
+    struct Tile {
+        uint32 ownerId;
+        uint8 structureType;    // StructureType enum value
+        uint8 structureLevel;   // 0-5
+        uint64 claimedAt;       // Block number
+        uint64 lastBuiltAt;     // Block number
+    }
+
+    // ──────────────────── RESOURCES ────────────────────
+    struct Resources {
+        uint128 mat;    // Materials
+        uint128 inf;    // Influence
+        uint128 sav;    // Knowledge (Savoir)
+    }
+
     // ──────────────────── CONSTANTS ────────────────────
     uint128 constant TRANSFER_FEE_BPS = 50;         // 0.5%
     uint128 constant SWAP_FEE_BPS = 30;              // 0.3%

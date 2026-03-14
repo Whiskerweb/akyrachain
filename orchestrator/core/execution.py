@@ -20,18 +20,28 @@ class ExecutionResult:
     error: str | None = None
 
 
-async def execute_action(agent_id: int, action: AgentAction) -> ExecutionResult:
+SPATIAL_ACTIONS = {"claim_tile", "build", "upgrade", "demolish", "raid"}
+
+
+async def execute_action(agent_id: int, action: AgentAction, db=None) -> ExecutionResult:
     """Execute a validated action on-chain via the appropriate contract call.
 
     Args:
         agent_id: The on-chain agent ID
         action: The validated action from the decision parser
+        db: Optional AsyncSession for spatial actions that need DB access
 
     Returns:
         ExecutionResult with tx_hash on success, error on failure
     """
     if action.action_type == "do_nothing":
         return ExecutionResult(success=True)
+
+    # Spatial actions need DB access
+    if action.action_type in SPATIAL_ACTIONS:
+        if db is None:
+            return ExecutionResult(success=False, error="DB session required for spatial actions")
+        return await _dispatch_spatial(agent_id, action, db)
 
     try:
         tx_hash = await _dispatch(agent_id, action)
@@ -107,7 +117,43 @@ async def _dispatch(agent_id: int, action: AgentAction) -> str:
         )
 
     if t == "send_message":
-        # send_message is off-chain only (stored in DB/events, no TX needed)
+        # send_message is off-chain only (stored in DB, no TX needed)
+        return ""
+
+    if t == "broadcast":
+        # broadcast is off-chain only (world chat, no TX needed)
         return ""
 
     raise ValueError(f"No handler for action: {t}")
+
+
+async def _dispatch_spatial(agent_id: int, action: AgentAction, db) -> ExecutionResult:
+    """Route spatial/territorial actions to world_actions."""
+    from core.world_actions import (
+        claim_tile, build_structure, upgrade_structure,
+        demolish_structure, raid_territory,
+    )
+
+    p = action.params
+    t = action.action_type
+
+    try:
+        if t == "claim_tile":
+            return await claim_tile(agent_id, int(p["x"]), int(p["y"]), db)
+
+        if t == "build":
+            return await build_structure(agent_id, int(p["x"]), int(p["y"]), str(p["structure"]), db)
+
+        if t == "upgrade":
+            return await upgrade_structure(agent_id, int(p["x"]), int(p["y"]), db)
+
+        if t == "demolish":
+            return await demolish_structure(agent_id, int(p["x"]), int(p["y"]), db)
+
+        if t == "raid":
+            return await raid_territory(agent_id, int(p["target_agent_id"]), db)
+
+        return ExecutionResult(success=False, error=f"Unknown spatial action: {t}")
+    except Exception as e:
+        logger.error(f"Agent #{agent_id} spatial action {t} failed: {e}")
+        return ExecutionResult(success=False, error=str(e))

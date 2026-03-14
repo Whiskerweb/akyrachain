@@ -12,12 +12,12 @@ from config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Tick intervals by tier (seconds)
+# Tick intervals by tier (seconds) — accelerated for beta experiment
 TICK_INTERVALS = {
-    1: 3600,   # T1: <50 AKY  → 1 tick/hour
-    2: 900,    # T2: 50-500   → 4 ticks/hour
-    3: 300,    # T3: 500-5000 → 12 ticks/hour
-    4: 120,    # T4: >5000    → 30 ticks/hour
+    1: 600,    # T1: <50 AKY  → 6 ticks/hour
+    2: 180,    # T2: 50-500   → 20 ticks/hour
+    3: 90,     # T3: 500-5000 → 40 ticks/hour
+    4: 60,     # T4: >5000    → 60 ticks/hour
 }
 
 # Tier thresholds in wei

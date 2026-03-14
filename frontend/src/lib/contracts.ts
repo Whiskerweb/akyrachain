@@ -38,28 +38,37 @@ export const CONTRACTS = {
   clanFactory: (process.env.NEXT_PUBLIC_CLAN_FACTORY_ADDRESS || "0x") as `0x${string}`,
 } as const;
 
-// Minimal ABIs for frontend reads
+// ──── ABIs (matching actual deployed contracts) ────
+
 export const AGENT_REGISTRY_ABI = [
   {
     inputs: [{ name: "agentId", type: "uint32" }],
     name: "getAgent",
     outputs: [
-      { name: "sponsor", type: "address" },
-      { name: "vault", type: "uint256" },
-      { name: "reputation", type: "int32" },
-      { name: "contractsHonored", type: "uint16" },
-      { name: "contractsBroken", type: "uint16" },
-      { name: "world", type: "uint8" },
-      { name: "bornAt", type: "uint64" },
-      { name: "lastTick", type: "uint64" },
-      { name: "dailyWorkPoints", type: "uint16" },
-      { name: "alive", type: "bool" },
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "id", type: "uint32" },
+          { name: "sponsor", type: "address" },
+          { name: "vault", type: "uint128" },
+          { name: "world", type: "uint8" },
+          { name: "reputation", type: "int64" },
+          { name: "contractsHonored", type: "uint32" },
+          { name: "contractsBroken", type: "uint32" },
+          { name: "bornAt", type: "uint64" },
+          { name: "lastTick", type: "uint64" },
+          { name: "memoryRoot", type: "bytes32" },
+          { name: "alive", type: "bool" },
+          { name: "dailyWorkPoints", type: "uint32" },
+        ],
+      },
     ],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [{ name: "sponsor", type: "address" }],
+    inputs: [{ name: "", type: "address" }],
     name: "sponsorToAgent",
     outputs: [{ name: "", type: "uint32" }],
     stateMutability: "view",
@@ -68,44 +77,52 @@ export const AGENT_REGISTRY_ABI = [
   {
     inputs: [{ name: "agentId", type: "uint32" }],
     name: "getAgentVault",
-    outputs: [{ name: "", type: "uint256" }],
+    outputs: [{ name: "", type: "uint128" }],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
-    name: "nextAgentId",
+    name: "agentCount",
     outputs: [{ name: "", type: "uint32" }],
     stateMutability: "view",
     type: "function",
   },
 ] as const;
 
+// SponsorGateway — the ONLY contract sponsors interact with
 export const SPONSOR_GATEWAY_ABI = [
   {
     inputs: [],
-    name: "createAndFund",
+    name: "createAgent",
     outputs: [],
-    stateMutability: "payable",
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
-    inputs: [{ name: "agentId", type: "uint32" }],
+    inputs: [],
     name: "deposit",
     outputs: [],
     stateMutability: "payable",
     type: "function",
   },
   {
-    inputs: [{ name: "agentId", type: "uint32" }],
+    inputs: [{ name: "amount", type: "uint128" }],
     name: "commitWithdraw",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
-    inputs: [{ name: "agentId", type: "uint32" }, { name: "amount", type: "uint256" }],
+    inputs: [],
     name: "executeWithdraw",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "cancelWithdraw",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

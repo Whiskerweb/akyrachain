@@ -31,7 +31,7 @@ export function AgentCard({ agent }: AgentCardProps) {
         <div>
           <div className="text-akyra-textSecondary text-sm">Coffre</div>
           <div className="text-akyra-gold font-heading text-sm">
-            {formatAKYFull(agent.vault)} AKY
+            {agent.vault_aky?.toFixed(2) || agent.vault} AKY
           </div>
         </div>
         <div>

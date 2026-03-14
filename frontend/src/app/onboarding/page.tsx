@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount, useSwitchChain, useDisconnect, useSignMessage } from "wagmi";
+import { useAccount, useSwitchChain, useDisconnect, useSignMessage, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { JungleBox } from "@/components/ui/JungleBox";
 import { PageTransition } from "@/components/ui/PageTransition";
 import { authAPI, faucetAPI, agentsAPI } from "@/lib/api";
-import { akyraChain } from "@/lib/contracts";
+import { akyraChain, CONTRACTS, SPONSOR_GATEWAY_ABI } from "@/lib/contracts";
 import { useAkyraStore } from "@/stores/akyraStore";
 
 const STEPS = [
@@ -29,6 +29,7 @@ const LLM_PROVIDERS = [
 export default function OnboardingPage() {
   const router = useRouter();
   const token = useAkyraStore((s) => s.token);
+  const [mounted, setMounted] = useState(false);
   const { address, isConnected, chain } = useAccount();
   const { switchChain } = useSwitchChain();
   const { disconnect } = useDisconnect();
@@ -37,10 +38,12 @@ export default function OnboardingPage() {
   const [linkingWallet, setLinkingWallet] = useState(false);
   const isCorrectChain = chain?.id === akyraChain.id;
 
+  useEffect(() => { setMounted(true); }, []);
+
   // Redirect to login if not authenticated
   useEffect(() => {
-    if (!token) router.push("/login");
-  }, [token, router]);
+    if (mounted && !token) router.push("/login");
+  }, [mounted, token, router]);
 
   // Step 1: Faucet
   const [faucetClaimed, setFaucetClaimed] = useState(false);
@@ -52,9 +55,13 @@ export default function OnboardingPage() {
   const [apiKey, setApiKey] = useState("");
   const [budget, setBudget] = useState("1.00");
 
-  // Step 3: Deploy
-  const [deploying, setDeploying] = useState(false);
+  // Step 3: Deploy (on-chain via SponsorGateway)
   const [deployed, setDeployed] = useState(false);
+  const { writeContract, data: deployTxHash, isPending: deploying } = useWriteContract();
+  const { isLoading: deployConfirming, isSuccess: deploySuccess } = useWaitForTransactionReceipt({
+    hash: deployTxHash,
+    confirmations: 1,
+  });
 
   const handleLinkWallet = async () => {
     if (!address) return;
@@ -106,30 +113,55 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleDeploy = async () => {
-    setDeploying(true);
-    try {
-      const result = await agentsAPI.create();
+  // When on-chain TX confirms, register the agent in the backend
+  useEffect(() => {
+    if (!deploySuccess || deployed) return;
+    setDeployed(true);
+    toast.success("Transaction confirmee on-chain !");
+    // Sync with backend
+    agentsAPI.create().then((result) => {
       const agentId = (result as { agent_id?: number })?.agent_id;
-      toast.success(`Agent #${agentId} cree ! Bienvenue dans la jungle.`);
-      setDeployed(true);
+      toast.success(`Agent #${agentId} enregistre ! Bienvenue dans la jungle.`);
       setTimeout(() => router.push("/dashboard"), 2000);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erreur deploiement";
+    }).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : "";
       if (msg.includes("already have agent")) {
-        toast.info("Tu as deja un agent !");
+        toast.info("Agent deja enregistre !");
         router.push("/dashboard");
-      } else {
-        toast.error(msg);
       }
-    } finally {
-      setDeploying(false);
-    }
+      // Even if backend sync fails, the on-chain agent exists
+      setTimeout(() => router.push("/dashboard"), 2000);
+    });
+  }, [deploySuccess, deployed, router]);
+
+  const handleDeploy = () => {
+    writeContract(
+      {
+        address: CONTRACTS.sponsorGateway,
+        abi: SPONSOR_GATEWAY_ABI,
+        functionName: "createAgent",
+      },
+      {
+        onSuccess: () => toast.success("Transaction envoyee ! En attente de confirmation..."),
+        onError: (err) => {
+          const msg = err.message || "";
+          if (msg.includes("already") || msg.includes("AlreadySponsor")) {
+            // Agent already exists on-chain, just sync backend
+            agentsAPI.create().then(() => {
+              toast.info("Agent deja cree on-chain, synchronise !");
+              router.push("/dashboard");
+            }).catch(() => router.push("/dashboard"));
+          } else {
+            toast.error(`Erreur: ${msg.slice(0, 120)}`);
+          }
+        },
+      }
+    );
   };
 
   const selectedProvider = LLM_PROVIDERS.find((p) => p.value === provider);
 
-  if (!token) return null;
+  if (!mounted || !token) return null;
 
   return (
     <div className="min-h-screen bg-jungle-gradient flex items-center justify-center px-4 py-12">
@@ -338,11 +370,11 @@ export default function OnboardingPage() {
               <Button
                 variant="gold"
                 onClick={handleDeploy}
-                loading={deploying}
+                loading={deploying || deployConfirming}
                 className="w-full"
                 size="lg"
               >
-                Donner vie a mon IA
+                {deployConfirming ? "Confirmation on-chain..." : "Donner vie a mon IA"}
               </Button>
             ) : (
               <div className="space-y-4">

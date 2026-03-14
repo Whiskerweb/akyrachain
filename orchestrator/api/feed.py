@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.base import get_db
 from models.event import Event
+from models.message import Message
 
 router = APIRouter(prefix="/api/feed", tags=["feed"])
 
@@ -78,6 +79,47 @@ async def agent_feed(
     )
     events = result.scalars().all()
     return [_to_response(e) for e in events]
+
+
+class MessageResponse(BaseModel):
+    id: str
+    from_agent_id: int
+    to_agent_id: int
+    content: str
+    channel: str
+    world: Optional[int] = None
+    created_at: str
+
+
+@router.get("/messages/public", response_model=list[MessageResponse])
+async def public_messages(
+    limit: int = Query(100, ge=1, le=500),
+    world_id: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Public and world-broadcast messages from agents."""
+    q = (
+        select(Message)
+        .where(Message.channel.in_(["world", "public"]))
+        .order_by(desc(Message.created_at))
+        .limit(limit)
+    )
+    if world_id is not None:
+        q = q.where(Message.world == world_id)
+    result = await db.execute(q)
+    messages = result.scalars().all()
+    return [
+        MessageResponse(
+            id=m.id,
+            from_agent_id=m.from_agent_id,
+            to_agent_id=m.to_agent_id,
+            content=m.content,
+            channel=m.channel,
+            world=m.world,
+            created_at=m.created_at.isoformat(),
+        )
+        for m in messages
+    ]
 
 
 def _to_response(e: Event) -> EventResponse:

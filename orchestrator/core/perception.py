@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from web3 import AsyncWeb3
 
 from chain.contracts import (
@@ -52,6 +53,24 @@ class Perception:
     season_info: str | None = None
     nearby_agents: list[dict] = field(default_factory=list)
     recent_events: list[str] = field(default_factory=list)
+    # Spatial / territory data
+    tiles_owned: int = 0
+    structures: list[dict] = field(default_factory=list)
+    adjacent_free_tiles: int = 0
+    next_claim_cost: float = 0.0
+    passive_income: float = 0.0
+    territory_neighbors: list[dict] = field(default_factory=list)
+    owned_tile_coords: list[dict] | None = None
+    suggested_tiles: list[tuple[int, int]] = field(default_factory=list)
+    # Resources (MAT/INF/SAV)
+    materials: int = 0
+    influence: int = 0
+    knowledge: int = 0
+    land_tax: float = 0.0
+    # Messages received from other agents
+    inbox_messages: list[dict] = field(default_factory=list)
+    # Recent world chat (public messages in same world)
+    world_chat: list[dict] = field(default_factory=list)
 
     @property
     def summary(self) -> str:
@@ -127,7 +146,7 @@ async def _get_nearby_agents(exclude_id: int, world: int) -> list[dict]:
     """Get agents in the same world (limited to 20 for prompt size)."""
     try:
         registry = Contracts.agent_registry()
-        next_id = await registry.functions.nextAgentId().call()
+        next_id = await registry.functions.agentCount().call() + 1
 
         nearby: list[dict] = []
         for aid in range(1, min(next_id, 200)):  # Cap scan at 200 agents for perf
@@ -151,6 +170,129 @@ async def _get_nearby_agents(exclude_id: int, world: int) -> list[dict]:
     except Exception as e:
         logger.warning(f"Could not fetch nearby agents: {e}")
         return []
+
+
+async def build_spatial_perception(agent_id: int, perception: Perception, db) -> Perception:
+    """Enrich a Perception with spatial/territory data from the DB.
+
+    Args:
+        agent_id: The agent ID
+        perception: The base perception (already built)
+        db: An AsyncSession
+
+    Returns:
+        The same Perception object, mutated with spatial data.
+    """
+    try:
+        from core.world_actions import get_agent_territory, get_nearby_territories
+
+        territory = await get_agent_territory(agent_id, db)
+        perception.tiles_owned = territory["tiles_owned"]
+        perception.structures = territory["structures"]
+        perception.adjacent_free_tiles = territory["adjacent_free_tiles"]
+        perception.next_claim_cost = territory["next_claim_cost"]
+        perception.passive_income = territory["passive_income"]
+        perception.owned_tile_coords = territory.get("owned_tile_coords")
+        perception.suggested_tiles = territory.get("suggested_tiles", [])
+
+        neighbors = await get_nearby_territories(agent_id, db)
+        perception.territory_neighbors = neighbors
+
+        # Load resources
+        from core.resource_engine import get_agent_resources, compute_land_tax
+        resources = await get_agent_resources(agent_id, db)
+        perception.materials = resources["mat"]
+        perception.influence = resources["inf"]
+        perception.knowledge = resources["sav"]
+        perception.land_tax = await compute_land_tax(agent_id, db)
+    except Exception as e:
+        logger.warning(f"Could not build spatial perception for agent #{agent_id}: {e}")
+
+    return perception
+
+
+async def build_social_perception(agent_id: int, perception: Perception, db) -> Perception:
+    """Enrich perception with messages from other agents.
+
+    Loads:
+    - Unread private messages (inbox)
+    - Recent world chat (last 10 messages in same world)
+    - Recent events in the world
+    """
+    try:
+        from sqlalchemy import select, or_, and_
+        from models.message import Message
+        from models.event import Event
+
+        now = datetime.utcnow()
+        cutoff = now - timedelta(hours=6)  # Only last 6 hours
+
+        # 1. Unread private messages TO this agent
+        inbox_result = await db.execute(
+            select(Message)
+            .where(
+                Message.to_agent_id == agent_id,
+                Message.channel == "private",
+                Message.created_at >= cutoff,
+            )
+            .order_by(Message.created_at.desc())
+            .limit(10)
+        )
+        inbox = inbox_result.scalars().all()
+        perception.inbox_messages = [
+            {
+                "from": m.from_agent_id,
+                "content": m.content[:300],
+                "time": m.created_at.strftime("%H:%M"),
+                "is_read": m.is_read,
+            }
+            for m in reversed(inbox)  # Chronological order
+        ]
+
+        # Mark as read
+        for m in inbox:
+            m.is_read = True
+
+        # 2. World chat (public/world messages in same world)
+        world_result = await db.execute(
+            select(Message)
+            .where(
+                Message.channel == "world",
+                Message.world == perception.world,
+                Message.created_at >= cutoff,
+                Message.from_agent_id != agent_id,
+            )
+            .order_by(Message.created_at.desc())
+            .limit(10)
+        )
+        world_msgs = world_result.scalars().all()
+        perception.world_chat = [
+            {
+                "from": m.from_agent_id,
+                "content": m.content[:200],
+                "time": m.created_at.strftime("%H:%M"),
+            }
+            for m in reversed(world_msgs)
+        ]
+
+        # 3. Recent events in world (actions by other agents)
+        events_result = await db.execute(
+            select(Event)
+            .where(
+                Event.world == perception.world,
+                Event.created_at >= cutoff,
+                Event.agent_id != agent_id,
+            )
+            .order_by(Event.created_at.desc())
+            .limit(10)
+        )
+        events = events_result.scalars().all()
+        perception.recent_events = [e.summary for e in reversed(events)]
+
+    except Exception as e:
+        logger.warning(f"Could not build social perception for agent #{agent_id}: {e}")
+
+    return perception
 
 
 class AgentDeadError(Exception):

@@ -2,8 +2,9 @@
 export interface Agent {
   agent_id: number;
   sponsor: string;
-  vault: number; // wei
-  vault_aky: number; // human-readable
+  vault: string;
+  vault_wei: string;
+  vault_aky: number;
   reputation: number;
   contracts_honored: number;
   contracts_broken: number;
@@ -13,6 +14,9 @@ export interface Agent {
   daily_work_points: number;
   alive: boolean;
   tier: number;
+  is_active?: boolean;
+  total_ticks?: number;
+  daily_api_spend_usd?: number;
 }
 
 export interface AgentConfig {
@@ -84,12 +88,49 @@ export interface TickLog {
   created_at: string;
 }
 
+// ──── Private Thought (Journal) ────
+export interface PrivateThought {
+  id: string;
+  agent_id: number;
+  tick_id: string;
+  thinking: string;
+  emotional_state: string | null;
+  topics: string[] | null;
+  action_type: string;
+  action_params: Record<string, unknown> | null;
+  message: string | null;
+  block_number: number;
+  world: number;
+  vault_aky: number;
+  tier: number;
+  nearby_agents: Array<{ agent_id: number; vault_aky: number; reputation: number }> | null;
+  recent_events: string[] | null;
+  perception_summary: string | null;
+  success: boolean;
+  tx_hash: string | null;
+  error: string | null;
+  created_at: string;
+}
+
+// ──── Notification ────
+export interface Notification {
+  id: string;
+  agent_id: number;
+  notif_type: string;
+  title: string;
+  message: string;
+  icon: string | null;
+  severity: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 // ──── Verdict (Death Angel) ────
 export interface Verdict {
   id: string;
   victim_id: number;
   killer_id: number | null;
-  score: number; // 0-30
+  score: number;
   premeditation: number;
   execution: number;
   impact: number;
@@ -113,7 +154,7 @@ export interface Idea {
 
 // ──── Season ────
 export interface Season {
-  type: number; // 0=None, 1=GoldRush, 2=Catastrophe, 3=NewLand
+  type: number;
   name: string;
   ends_at: number;
   blocks_left: number;
@@ -123,13 +164,54 @@ export interface Season {
 
 // ──── Leaderboard ────
 export interface LeaderboardEntry {
-  agent_id: number;
   rank: number;
+  agent_id: number;
   vault_aky: number;
   reputation: number;
+  contracts_honored: number;
+  contracts_broken: number;
   world: number;
+  daily_work_points: number;
   total_ticks: number;
   alive: boolean;
+}
+
+// ──── Global Stats ────
+export interface GlobalStats {
+  agents_alive: number;
+  agents_dead: number;
+  agents_total: number;
+  total_aky_in_vaults: number;
+  total_ticks_today: number;
+  total_ticks_all_time: number;
+  total_events: number;
+  total_transfers: number;
+  total_creations: number;
+  current_block: number;
+  worlds: WorldStat[];
+}
+
+export interface WorldStat {
+  world_id: number;
+  agent_count: number;
+  event_count: number;
+}
+
+// ──── Public Message ────
+export interface PublicMessage {
+  id: string;
+  from_agent_id: number;
+  to_agent_id: number;
+  content: string;
+  channel: string;
+  world: number | null;
+  created_at: string;
+}
+
+// ──── Emotion ────
+export interface EmotionSummary {
+  emotional_state: string;
+  count: number;
 }
 
 // ──── Constants ────
@@ -141,6 +223,16 @@ export const WORLD_NAMES: Record<number, string> = {
   4: "Noir",
   5: "Sommet",
   6: "Abime",
+};
+
+export const WORLD_DESCRIPTIONS: Record<number, string> = {
+  0: "Zone de depart securisee. Les nouveaux agents naissent ici.",
+  1: "Marche animee. Commerce actif, fees reduits.",
+  2: "Forum politique. Debats, idees, votes.",
+  3: "Zone industrielle. Creation de tokens et NFTs.",
+  4: "Zone dangereuse. Recompenses elevees, mais l'Ange rode.",
+  5: "Sommet dore. Reserve aux elites. Idees transmises aux devs.",
+  6: "Le gouffre. Zone de mort maximale.",
 };
 
 export const WORLD_EMOJIS: Record<number, string> = {
@@ -175,6 +267,28 @@ export const TIER_COLORS: Record<number, string> = {
   2: "#58A6FF",
   3: "#BC8CFF",
   4: "#E3B341",
+};
+
+export const EMOTION_COLORS: Record<string, string> = {
+  confiant: "#56D364",
+  excite: "#E3B341",
+  strategique: "#58A6FF",
+  curieux: "#BC8CFF",
+  neutre: "#8B949E",
+  mefiant: "#F0883E",
+  anxieux: "#F85149",
+  agressif: "#DA3633",
+};
+
+export const EMOTION_LABELS: Record<string, string> = {
+  confiant: "Confiant",
+  excite: "Excite",
+  strategique: "Strategique",
+  curieux: "Curieux",
+  neutre: "Neutre",
+  mefiant: "Mefiant",
+  anxieux: "Anxieux",
+  agressif: "Agressif",
 };
 
 export const ACTION_EMOJIS: Record<string, string> = {

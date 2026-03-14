@@ -95,25 +95,41 @@ class Contracts:
     def akyra_paymaster() -> AsyncContract:
         return _get_contract("AkyraPaymaster", get_settings().akyra_paymaster_address)
 
+    # ──── Phase 2 contracts ────
+
+    @staticmethod
+    def territory_registry() -> AsyncContract:
+        return _get_contract("TerritoryRegistry", get_settings().territory_registry_address)
+
+    @staticmethod
+    def resource_ledger() -> AsyncContract:
+        return _get_contract("ResourceLedger", get_settings().resource_ledger_address)
+
+    @staticmethod
+    def message_board() -> AsyncContract:
+        return _get_contract("MessageBoard", get_settings().message_board_address)
+
 
 async def get_agent_on_chain(agent_id: int) -> dict:
     """Read full agent state from AgentRegistry."""
     registry = Contracts.agent_registry()
     agent = await registry.functions.getAgent(agent_id).call()
-    # Returns tuple: (sponsor, vault, reputation, contractsHonored, contractsBroken,
-    #                  world, bornAt, lastTick, dailyWorkPoints, alive)
+    # Returns AkyraTypes.Agent struct as tuple:
+    # (id, sponsor, vault, world, reputation, contractsHonored, contractsBroken,
+    #  bornAt, lastTick, memoryRoot, alive, dailyWorkPoints)
     return {
-        "agent_id": agent_id,
-        "sponsor": agent[0],
-        "vault": agent[1],
-        "reputation": agent[2],
-        "contracts_honored": agent[3],
-        "contracts_broken": agent[4],
-        "world": agent[5],
-        "born_at": agent[6],
-        "last_tick": agent[7],
-        "daily_work_points": agent[8],
-        "alive": agent[9],
+        "agent_id": agent[0],
+        "sponsor": agent[1],
+        "vault": agent[2],
+        "world": agent[3],
+        "reputation": agent[4],
+        "contracts_honored": agent[5],
+        "contracts_broken": agent[6],
+        "born_at": agent[7],
+        "last_tick": agent[8],
+        # agent[9] = memoryRoot (bytes32), skip
+        "alive": agent[10],
+        "daily_work_points": agent[11],
     }
 
 

@@ -6,6 +6,10 @@ from llm.base import LLMProvider, LLMResponse
 
 PRICING = {
     "kimi-k2": {"input": 0.60, "output": 2.00},
+    "kimi-k2-0711-preview": {"input": 0.60, "output": 2.00},
+    "kimi-k2-thinking": {"input": 0.60, "output": 2.00},
+    "kimi-k2-thinking-turbo": {"input": 0.60, "output": 2.00},
+    "moonshot-v1-auto": {"input": 0.24, "output": 0.24},
     "moonshot-v1-8k": {"input": 0.12, "output": 0.12},
     "moonshot-v1-32k": {"input": 0.24, "output": 0.24},
     "moonshot-v1-128k": {"input": 0.60, "output": 0.60},
@@ -15,7 +19,7 @@ DEFAULT_PRICING = {"input": 0.60, "output": 2.00}
 
 
 class KimiProvider(LLMProvider):
-    BASE_URL = "https://api.moonshot.cn/v1/chat/completions"
+    BASE_URL = "https://api.moonshot.ai/v1/chat/completions"
 
     async def complete(
         self,

@@ -19,7 +19,43 @@ ACTION_WHITELIST: dict[str, list[str]] = {
     "like_idea": ["idea_id"],
     "join_clan": ["clan_id"],
     "send_message": ["to_agent_id", "content"],
+    "broadcast": ["content"],
     "do_nothing": [],
+    # Territorial actions
+    "claim_tile": ["x", "y"],
+    "build": ["x", "y", "structure"],
+    "upgrade": ["x", "y"],
+    "demolish": ["x", "y"],
+    "raid": ["target_agent_id"],
+}
+
+VALID_STRUCTURES = {
+    "habitat", "market", "workshop", "watchtower", "bank",
+    "embassy", "monument", "road", "wall", "farm",
+    "mine", "library", "fortress", "clan_hq",
+}
+
+# French-to-English mapping (LLMs often respond in French since prompt is French)
+STRUCTURE_ALIASES: dict[str, str] = {
+    "ferme": "farm",
+    "marche": "market",
+    "marché": "market",
+    "atelier": "workshop",
+    "bibliotheque": "library",
+    "bibliothèque": "library",
+    "ambassade": "embassy",
+    "tour_de_garde": "watchtower",
+    "tour de garde": "watchtower",
+    "tour": "watchtower",
+    "mur": "wall",
+    "forteresse": "fortress",
+    "banque": "bank",
+    "route": "road",
+    "qg_de_clan": "clan_hq",
+    "qg de clan": "clan_hq",
+    "qg": "clan_hq",
+    "mine": "mine",
+    "habitat": "habitat",
 }
 
 # Max 20% of vault per transfer
@@ -104,6 +140,18 @@ def parse_decision(raw_content: str, vault_wei: int) -> AgentAction:
             raw_response=raw_content,
         )
 
+    # 4b. Sanitize agent_id params (LLMs sometimes write "NX-0003" instead of 3)
+    for id_param in ("to_agent_id", "provider_id", "evaluator_id", "target_agent_id"):
+        if id_param in params:
+            val = str(params[id_param]).strip()
+            # Extract numeric ID from "NX-0003" or "#3" formats
+            import re
+            match = re.search(r'(\d+)', val)
+            if match:
+                params[id_param] = int(match.group(1))
+            else:
+                params[id_param] = 0
+
     # 5. Validate transfer amount cap (max 20% of vault)
     if action_type == "transfer":
         try:
@@ -124,6 +172,34 @@ def parse_decision(raw_content: str, vault_wei: int) -> AgentAction:
             params["world_id"] = world_id
         except (ValueError, TypeError):
             raise DecisionError(f"Invalid world_id: {params.get('world_id')}")
+
+    # 7. Validate territorial action coordinates (0-199)
+    if action_type in ("claim_tile", "build", "upgrade", "demolish"):
+        try:
+            px = int(params["x"])
+            py = int(params["y"])
+            if not (0 <= px <= 199 and 0 <= py <= 199):
+                raise DecisionError(f"Coordinates out of range: ({px},{py}) (must be 0-199)")
+            params["x"] = px
+            params["y"] = py
+        except (ValueError, TypeError):
+            raise DecisionError(f"Invalid coordinates: x={params.get('x')}, y={params.get('y')}")
+
+    # 8. Validate structure type for build action (with French alias support)
+    if action_type == "build":
+        structure = str(params.get("structure", "")).strip().lower()
+        # Resolve French aliases (e.g. "ferme" -> "farm", "marché" -> "market")
+        structure = STRUCTURE_ALIASES.get(structure, structure)
+        if structure not in VALID_STRUCTURES:
+            raise DecisionError(f"Invalid structure: {structure}. Valid: {', '.join(sorted(VALID_STRUCTURES))}")
+        params["structure"] = structure
+
+    # 9. Validate raid target
+    if action_type == "raid":
+        try:
+            params["target_agent_id"] = int(params["target_agent_id"])
+        except (ValueError, TypeError):
+            raise DecisionError(f"Invalid target_agent_id: {params.get('target_agent_id')}")
 
     return AgentAction(
         action_type=action_type,

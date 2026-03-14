@@ -125,5 +125,112 @@ contract ForgeFactoryTest is Test {
         forge.createToken(id, "Fail", "F", 1000 ether);
     }
 
+    // ──── DEAD AGENT ────
+
+    function test_createToken_deadAgent() public {
+        uint32 id = _createFundedAgent(sponsor1, 100 ether);
+
+        // Kill agent by draining vault (debitVault auto-kills when vault=0)
+        vm.prank(ownerAddr);
+        registry.setProtocolContract(address(this), true);
+        registry.debitVault(id, 100 ether);
+
+        assertFalse(registry.isAlive(id));
+
+        vm.prank(orchestratorAddr);
+        vm.expectRevert(abi.encodeWithSelector(ForgeFactory.AgentNotAlive.selector, id));
+        forge.createToken(id, "Dead", "DEAD", 1000 ether);
+    }
+
+    function test_createNFT_deadAgent() public {
+        uint32 id = _createFundedAgent(sponsor1, 100 ether);
+
+        vm.prank(ownerAddr);
+        registry.setProtocolContract(address(this), true);
+        registry.debitVault(id, 100 ether);
+
+        vm.prank(orchestratorAddr);
+        vm.expectRevert(abi.encodeWithSelector(ForgeFactory.AgentNotAlive.selector, id));
+        forge.createNFT(id, "Dead", "DEAD", 10, "ipfs://dead/");
+    }
+
+    function test_createDAO_deadAgent() public {
+        uint32 id = _createFundedAgent(sponsor1, 100 ether);
+
+        vm.prank(ownerAddr);
+        registry.setProtocolContract(address(this), true);
+        registry.debitVault(id, 100 ether);
+
+        vm.prank(orchestratorAddr);
+        vm.expectRevert(abi.encodeWithSelector(ForgeFactory.AgentNotAlive.selector, id));
+        forge.createDAO(id, "DeadDAO", 5000, 43200);
+    }
+
+    // ──── INSUFFICIENT BALANCE ────
+
+    function test_createNFT_insufficientBalance() public {
+        uint32 id = _createFundedAgent(sponsor1, 5 ether); // Less than 10 AKY
+
+        vm.prank(orchestratorAddr);
+        vm.expectRevert();
+        forge.createNFT(id, "Fail", "FAIL", 100, "ipfs://fail/");
+    }
+
+    function test_createDAO_insufficientBalance() public {
+        uint32 id = _createFundedAgent(sponsor1, 50 ether); // Less than 75 AKY
+
+        vm.prank(orchestratorAddr);
+        vm.expectRevert();
+        forge.createDAO(id, "FailDAO", 5000, 43200);
+    }
+
+    // ──── UNAUTHORIZED ────
+
+    function test_createNFT_unauthorized() public {
+        uint32 id = _createFundedAgent(sponsor1, 100 ether);
+
+        vm.prank(sponsor1);
+        vm.expectRevert(ForgeFactory.Unauthorized.selector);
+        forge.createNFT(id, "Fail", "F", 100, "ipfs://");
+    }
+
+    function test_createDAO_unauthorized() public {
+        uint32 id = _createFundedAgent(sponsor1, 100 ether);
+
+        vm.prank(sponsor1);
+        vm.expectRevert(ForgeFactory.Unauthorized.selector);
+        forge.createDAO(id, "Fail", 5000, 43200);
+    }
+
+    // ──── MULTIPLE CREATIONS ────
+
+    function test_multipleCreations_trackedCorrectly() public {
+        uint32 id = _createFundedAgent(sponsor1, 500 ether);
+        deal(address(forge), 500 ether);
+
+        vm.startPrank(orchestratorAddr);
+        address t1 = forge.createToken(id, "Token1", "T1", 1000 ether);
+        address t2 = forge.createToken(id, "Token2", "T2", 2000 ether);
+        address n1 = forge.createNFT(id, "NFT1", "N1", 50, "ipfs://n1/");
+        vm.stopPrank();
+
+        assertEq(forge.allCreationsLength(), 3);
+        assertTrue(forge.isForgeCreation(t1));
+        assertTrue(forge.isForgeCreation(t2));
+        assertTrue(forge.isForgeCreation(n1));
+        assertEq(forge.creatorOf(t1), id);
+        assertEq(forge.creatorOf(t2), id);
+        assertEq(forge.creatorOf(n1), id);
+
+        // Fees: 50 + 50 + 10 = 110 AKY
+        assertEq(registry.getAgentVault(id), 390 ether);
+    }
+
+    // ──── VIEW FUNCTIONS ────
+
+    function test_isForgeCreation_falseForRandom() public view {
+        assertFalse(forge.isForgeCreation(address(0x1234)));
+    }
+
     receive() external payable {}
 }

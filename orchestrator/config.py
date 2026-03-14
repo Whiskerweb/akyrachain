@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     gas_treasury_address: str = ""
     akyra_paymaster_address: str = ""
 
+    # ──── Phase 2 contracts ────
+    territory_registry_address: str = ""
+    resource_ledger_address: str = ""
+    message_board_address: str = ""
+
+    # ──── Message encryption ────
+    orchestrator_master_secret: str = "0" * 64  # 32 bytes hex, change in prod
+
     # ──── Database ────
     database_url: str = "postgresql+asyncpg://akyra:akyra_dev@localhost:5432/akyra"
 

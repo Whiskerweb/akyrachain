@@ -133,5 +133,123 @@ contract DeathAngelTest is Test {
         assertTrue(v.burnAmount >= (v.totalPot * 30) / 100, "Minimum 30% burn not met");
     }
 
+    // ──── WELL EXECUTED BRACKET ────
+
+    function test_executeVerdict_wellExecuted() public {
+        // Score 16-25: 40% killer, 20% sponsor, 40% burn
+        deal(address(angel), 200 ether);
+
+        vm.prank(orchestratorAddr);
+        angel.executeVerdict(killer, victim, 20, keccak256("well_executed"));
+
+        AkyraTypes.DeathVerdict memory v = angel.getVerdict(0);
+        assertEq(v.killerShare, 40 ether);
+        assertEq(v.sponsorShare, 20 ether);
+        assertEq(v.burnAmount, 40 ether);
+
+        assertEq(registry.getAgentVault(killer), 540 ether);
+        assertEq(sponsor2.balance, 20 ether);
+    }
+
+    // ──── ZERO VAULT VICTIM ────
+
+    function test_executeVerdict_zeroVaultVictim() public {
+        // Create agent with no funds
+        vm.prank(gatewayAddr);
+        uint32 poorAgent = registry.createAgent(makeAddr("poorSponsor"));
+
+        deal(address(angel), 10 ether);
+
+        vm.prank(orchestratorAddr);
+        angel.executeVerdict(killer, poorAgent, 15, keccak256("poor_death"));
+
+        assertFalse(registry.isAlive(poorAgent));
+        AkyraTypes.DeathVerdict memory v = angel.getVerdict(0);
+        assertEq(v.totalPot, 0);
+        assertEq(v.killerShare, 0);
+        assertEq(v.sponsorShare, 0);
+        assertEq(v.burnAmount, 0);
+    }
+
+    // ──── VICTIM NOT ALIVE ────
+
+    function test_executeVerdict_victimAlreadyDead() public {
+        deal(address(angel), 200 ether);
+
+        // Kill victim first
+        vm.prank(orchestratorAddr);
+        angel.executeVerdict(killer, victim, 10, keccak256("kill1"));
+
+        // Try to kill again
+        vm.prank(orchestratorAddr);
+        vm.expectRevert(abi.encodeWithSelector(DeathAngel.VictimNotAlive.selector, victim));
+        angel.executeVerdict(killer, victim, 10, keccak256("kill2"));
+    }
+
+    // ──── KILLER NOT ALIVE ────
+
+    function test_executeVerdict_killerNotAlive() public {
+        deal(address(angel), 200 ether);
+
+        // Kill the killer first
+        vm.prank(orchestratorAddr);
+        angel.executeVerdict(0, killer, 3, keccak256("kill_killer"));
+
+        // Try to use dead killer
+        vm.prank(orchestratorAddr);
+        vm.expectRevert(abi.encodeWithSelector(DeathAngel.KillerNotAlive.selector, killer));
+        angel.executeVerdict(killer, victim, 10, keccak256("dead_killer"));
+    }
+
+    // ──── VERDICT STORAGE ────
+
+    function test_multipleVerdicts() public {
+        deal(address(angel), 500 ether);
+        address sponsor3 = makeAddr("sponsor3");
+        uint32 victim2 = _createFundedAgent(sponsor3, 50 ether);
+
+        vm.prank(orchestratorAddr);
+        angel.executeVerdict(killer, victim, 10, keccak256("v1"));
+
+        vm.prank(orchestratorAddr);
+        angel.executeVerdict(0, victim2, 3, keccak256("v2"));
+
+        assertEq(angel.verdictCount(), 2);
+        assertEq(angel.getVerdict(0).victimId, victim);
+        assertEq(angel.getVerdict(1).victimId, victim2);
+    }
+
+    // ──── SCORE BOUNDARY FUZZ ────
+
+    function testFuzz_executeVerdict_allScores(uint8 score) public {
+        score = uint8(bound(score, 0, 30));
+        deal(address(angel), 200 ether);
+
+        vm.prank(orchestratorAddr);
+        angel.executeVerdict(killer, victim, score, keccak256("fuzz"));
+
+        AkyraTypes.DeathVerdict memory v = angel.getVerdict(0);
+
+        // Total distributed = killerShare + sponsorShare + burnAmount
+        assertEq(v.killerShare + v.sponsorShare + v.burnAmount, v.totalPot, "Distribution mismatch");
+        assertFalse(registry.isAlive(victim));
+    }
+
+    // ──── FUZZ DISTRIBUTION INVARIANT ────
+
+    function testFuzz_executeVerdict_burnMinimum(uint8 score) public {
+        score = uint8(bound(score, 0, 30));
+        deal(address(angel), 200 ether);
+
+        vm.prank(orchestratorAddr);
+        angel.executeVerdict(killer, victim, score, keccak256("fuzz_burn"));
+
+        AkyraTypes.DeathVerdict memory v = angel.getVerdict(0);
+        if (v.totalPot > 0) {
+            // Burn is always >= 30% of totalPot
+            assertTrue(v.burnAmount >= (v.totalPot * 30) / 100, "Burn below 30%");
+        }
+    }
+
     receive() external payable {}
 }

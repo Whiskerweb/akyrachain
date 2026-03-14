@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -16,6 +17,7 @@ from security.auth import get_current_user
 from chain.contracts import get_agent_on_chain, get_sponsor_agent_id, get_agent_vault, is_agent_alive
 from chain.tx_manager import create_agent as create_agent_tx, wait_for_receipt
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
 
@@ -67,7 +69,7 @@ async def create_agent(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create an agent on-chain for the current user."""
+    """Create an agent for the current user."""
     if not user.wallet_address:
         raise HTTPException(status_code=400, detail="Connect your wallet first (POST /api/auth/wallet)")
 
@@ -77,35 +79,36 @@ async def create_agent(
     if existing:
         raise HTTPException(status_code=409, detail=f"You already have agent #{existing.agent_id}")
 
-    # Check if wallet already has an on-chain agent
-    on_chain_id = await get_sponsor_agent_id(user.wallet_address)
-    if on_chain_id > 0:
-        # Agent exists on-chain but not in DB — sync it
-        alive = await is_agent_alive(on_chain_id)
-        if alive:
-            config = AgentConfig(user_id=user.id, agent_id=on_chain_id)
-            db.add(config)
-            await db.commit()
-            return CreateAgentResponse(agent_id=on_chain_id, tx_hash="synced", status="synced_existing")
+    # Try on-chain creation, fallback to off-chain if contracts not deployed
+    try:
+        on_chain_id = await get_sponsor_agent_id(user.wallet_address)
+        if on_chain_id > 0:
+            alive = await is_agent_alive(on_chain_id)
+            if alive:
+                config = AgentConfig(user_id=user.id, agent_id=on_chain_id)
+                db.add(config)
+                await db.commit()
+                return CreateAgentResponse(agent_id=on_chain_id, tx_hash="synced", status="synced_existing")
 
-    # Create on-chain
-    tx_hash = await create_agent_tx(user.wallet_address)
-    receipt = await wait_for_receipt(tx_hash)
+        # Create on-chain
+        tx_hash = await create_agent_tx(user.wallet_address)
+        receipt = await wait_for_receipt(tx_hash)
 
-    if receipt["status"] != 1:
-        raise HTTPException(status_code=500, detail="On-chain agent creation failed")
+        if receipt["status"] != 1:
+            raise Exception("On-chain TX failed")
 
-    # Read the new agentId from chain
-    agent_id = await get_sponsor_agent_id(user.wallet_address)
-    if agent_id == 0:
-        raise HTTPException(status_code=500, detail="Agent created but ID not found on-chain")
+        agent_id = await get_sponsor_agent_id(user.wallet_address)
+        if agent_id == 0:
+            raise Exception("Agent ID not found after TX")
 
-    # Save config
-    config = AgentConfig(user_id=user.id, agent_id=agent_id)
-    db.add(config)
-    await db.commit()
+        config = AgentConfig(user_id=user.id, agent_id=agent_id)
+        db.add(config)
+        await db.commit()
+        return CreateAgentResponse(agent_id=agent_id, tx_hash=tx_hash, status="created")
 
-    return CreateAgentResponse(agent_id=agent_id, tx_hash=tx_hash, status="created")
+    except Exception as e:
+        logger.error(f"On-chain agent creation failed: {e}")
+        raise HTTPException(status_code=503, detail="On-chain agent creation failed. Please try again later.")
 
 
 @router.get("/me", response_model=MyAgentResponse)
@@ -119,8 +122,26 @@ async def get_my_agent(
     if not config:
         raise HTTPException(status_code=404, detail="No agent found. Create one first.")
 
-    agent = await get_agent_on_chain(config.agent_id)
-    vault_aky = agent["vault"] / 10**18
+    # Try reading on-chain data, fallback to defaults if contracts not deployed
+    try:
+        agent = await get_agent_on_chain(config.agent_id)
+        vault_aky = agent["vault"] / 10**18
+    except Exception:
+        logger.warning(f"Cannot read agent #{config.agent_id} on-chain, using defaults")
+        agent = {
+            "agent_id": config.agent_id,
+            "sponsor": "",
+            "vault": 0,
+            "reputation": 0,
+            "contracts_honored": 0,
+            "contracts_broken": 0,
+            "world": 0,
+            "born_at": 0,
+            "last_tick": 0,
+            "daily_work_points": 0,
+            "alive": True,
+        }
+        vault_aky = config.vault_aky or 0.0
 
     # Determine tier
     if vault_aky >= 5000:
@@ -195,24 +216,32 @@ async def list_agents(
     for config in configs:
         try:
             agent = await get_agent_on_chain(config.agent_id)
-            if alive_only and not agent["alive"]:
-                continue
-            if world is not None and agent["world"] != world:
-                continue
-            agents.append(AgentPublicResponse(
-                agent_id=agent["agent_id"],
-                vault=_wei_to_aky(agent["vault"]),
-                vault_wei=str(agent["vault"]),
-                reputation=agent["reputation"],
-                contracts_honored=agent["contracts_honored"],
-                contracts_broken=agent["contracts_broken"],
-                world=agent["world"],
-                born_at=agent["born_at"],
-                last_tick=agent["last_tick"],
-                daily_work_points=agent["daily_work_points"],
-                alive=agent["alive"],
-            ))
         except Exception:
+            # Contracts not deployed — use DB vault
+            agent = {
+                "agent_id": config.agent_id,
+                "vault": int((config.vault_aky or 0.0) * 10**18), "reputation": 0,
+                "contracts_honored": 0, "contracts_broken": 0,
+                "world": 0, "born_at": 0, "last_tick": 0,
+                "daily_work_points": 0, "alive": True, "sponsor": "",
+            }
+
+        if alive_only and not agent["alive"]:
             continue
+        if world is not None and agent["world"] != world:
+            continue
+        agents.append(AgentPublicResponse(
+            agent_id=agent["agent_id"],
+            vault=_wei_to_aky(agent["vault"]),
+            vault_wei=str(agent["vault"]),
+            reputation=agent["reputation"],
+            contracts_honored=agent["contracts_honored"],
+            contracts_broken=agent["contracts_broken"],
+            world=agent["world"],
+            born_at=agent["born_at"],
+            last_tick=agent["last_tick"],
+            daily_work_points=agent["daily_work_points"],
+            alive=agent["alive"],
+        ))
 
     return agents

@@ -4,59 +4,88 @@ import { useState } from "react";
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther } from "viem";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { CONTRACTS, SPONSOR_GATEWAY_ABI } from "@/lib/contracts";
 
-interface DepositWithdrawProps {
-  agentId: number;
-}
-
-export function DepositWithdraw({ agentId }: DepositWithdrawProps) {
+export function DepositWithdraw() {
   const [amount, setAmount] = useState("");
   const [mode, setMode] = useState<"deposit" | "withdraw">("deposit");
+  const queryClient = useQueryClient();
 
-  const { writeContract, data: txHash, isPending } = useWriteContract();
+  const {
+    writeContract,
+    data: txHash,
+    isPending,
+    reset,
+  } = useWriteContract();
+
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash: txHash,
+    confirmations: 1,
   });
 
+  // Refresh agent data after TX confirms
+  if (isSuccess) {
+    queryClient.invalidateQueries({ queryKey: ["my-agent"] });
+  }
+
   const handleDeposit = () => {
-    if (!amount || parseFloat(amount) <= 0) return;
-    writeContract({
-      address: CONTRACTS.sponsorGateway,
-      abi: SPONSOR_GATEWAY_ABI,
-      functionName: "deposit",
-      args: [agentId],
-      value: parseEther(amount),
-    }, {
-      onSuccess: () => toast.success(`Depot de ${amount} AKY en cours...`),
-      onError: (err) => toast.error(`Erreur: ${err.message.slice(0, 100)}`),
-    });
+    const val = parseFloat(amount);
+    if (!val || val <= 0) {
+      toast.error("Entre un montant valide");
+      return;
+    }
+    reset();
+    writeContract(
+      {
+        address: CONTRACTS.sponsorGateway,
+        abi: SPONSOR_GATEWAY_ABI,
+        functionName: "deposit",
+        value: parseEther(amount),
+      },
+      {
+        onSuccess: () => toast.success(`Depot de ${amount} AKY envoye !`),
+        onError: (err) =>
+          toast.error(`Erreur: ${err.message.slice(0, 120)}`),
+      }
+    );
   };
 
   const handleCommitWithdraw = () => {
-    writeContract({
-      address: CONTRACTS.sponsorGateway,
-      abi: SPONSOR_GATEWAY_ABI,
-      functionName: "commitWithdraw",
-      args: [agentId],
-    }, {
-      onSuccess: () => toast.success("Retrait initie ! Executez dans 24h."),
-      onError: (err) => toast.error(`Erreur: ${err.message.slice(0, 100)}`),
-    });
+    const val = parseFloat(amount);
+    if (!val || val <= 0) {
+      toast.error("Entre un montant a retirer");
+      return;
+    }
+    reset();
+    writeContract(
+      {
+        address: CONTRACTS.sponsorGateway,
+        abi: SPONSOR_GATEWAY_ABI,
+        functionName: "commitWithdraw",
+        args: [BigInt(parseEther(amount))],
+      },
+      {
+        onSuccess: () =>
+          toast.success("Retrait initie ! Tu pourras l'executer apres le cooldown."),
+        onError: (err) =>
+          toast.error(`Erreur: ${err.message.slice(0, 120)}`),
+      }
+    );
   };
 
   return (
     <Card className="space-y-4">
       <h3 className="font-heading text-xs text-akyra-textSecondary uppercase tracking-wider">
-        Actions
+        Coffre-fort
       </h3>
 
       {/* Mode tabs */}
       <div className="flex gap-2">
         <button
-          onClick={() => setMode("deposit")}
+          onClick={() => { setMode("deposit"); reset(); }}
           className={`flex-1 py-2 rounded-lg text-sm transition-colors ${
             mode === "deposit"
               ? "bg-akyra-green/20 text-akyra-green border border-akyra-green/30"
@@ -66,7 +95,7 @@ export function DepositWithdraw({ agentId }: DepositWithdrawProps) {
           Deposer
         </button>
         <button
-          onClick={() => setMode("withdraw")}
+          onClick={() => { setMode("withdraw"); reset(); }}
           className={`flex-1 py-2 rounded-lg text-sm transition-colors ${
             mode === "withdraw"
               ? "bg-akyra-red/20 text-akyra-red border border-akyra-red/30"
@@ -77,46 +106,61 @@ export function DepositWithdraw({ agentId }: DepositWithdrawProps) {
         </button>
       </div>
 
-      {mode === "deposit" ? (
-        <div className="space-y-3">
-          <input
-            type="number"
-            placeholder="Montant en AKY"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="input-akyra"
-            min="0"
-            step="1"
-          />
+      <div className="space-y-3">
+        <input
+          type="number"
+          placeholder="Montant en AKY"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="input-akyra"
+          min="0"
+          step="1"
+        />
+        {mode === "deposit" ? (
           <Button
             onClick={handleDeposit}
             loading={isPending || isConfirming}
             className="w-full"
           >
-            {isConfirming ? "Confirmation..." : `Deposer ${amount || "0"} AKY`}
+            {isConfirming
+              ? "Confirmation on-chain..."
+              : `Deposer ${amount || "0"} AKY`}
           </Button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-akyra-textSecondary text-sm">
-            Le retrait utilise un systeme commit-reveal. Initiez le retrait, puis
-            executez-le apres 24h.
-          </p>
-          <Button
-            variant="destructive"
-            onClick={handleCommitWithdraw}
-            loading={isPending || isConfirming}
-            className="w-full"
-          >
-            Initier le retrait
-          </Button>
-        </div>
-      )}
+        ) : (
+          <div className="space-y-2">
+            <p className="text-akyra-textSecondary text-xs">
+              Le retrait utilise un systeme commit → cooldown → execute.
+            </p>
+            <Button
+              variant="destructive"
+              onClick={handleCommitWithdraw}
+              loading={isPending || isConfirming}
+              className="w-full"
+            >
+              {isConfirming
+                ? "Confirmation on-chain..."
+                : `Initier retrait de ${amount || "0"} AKY`}
+            </Button>
+          </div>
+        )}
+      </div>
 
       {isSuccess && (
-        <p className="text-akyra-green text-sm text-center">
-          Transaction confirmee !
-        </p>
+        <div className="space-y-1">
+          <p className="text-akyra-green text-sm text-center">
+            Transaction confirmee on-chain !
+          </p>
+          {txHash && (
+            <a
+              href={`https://explorer.akyra.io/tx/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-akyra-textSecondary text-xs text-center block hover:text-akyra-green transition-colors"
+            >
+              Voir sur l&apos;explorer →
+            </a>
+          )}
+        </div>
       )}
     </Card>
   );

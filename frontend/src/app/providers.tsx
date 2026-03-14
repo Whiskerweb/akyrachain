@@ -23,6 +23,7 @@ import { useState, useEffect } from "react";
 import { akyraChain } from "@/lib/contracts";
 import { websocket } from "@/lib/websocket";
 import { useAkyraStore } from "@/stores/akyraStore";
+import { CommandBar } from "@/components/layout/CommandBar";
 
 import "@rainbow-me/rainbowkit/styles.css";
 
@@ -95,6 +96,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           })}
         >
           {children}
+          <CommandBar />
           <Toaster
             theme="dark"
             position="bottom-right"

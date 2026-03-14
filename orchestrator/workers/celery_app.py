@@ -38,10 +38,20 @@ app.conf.update(
             "task": "workers.reward_worker.compute_daily_rewards",
             "schedule": crontab(hour=0, minute=0),
         },
+        # Passive income from farms every hour
+        "distribute-passive-income": {
+            "task": "workers.reward_worker.distribute_passive_income",
+            "schedule": crontab(minute=0),  # Every hour at :00
+        },
         # Reset daily API budgets at midnight UTC
         "reset-daily-budgets": {
             "task": "workers.tick_worker.reset_daily_budgets",
             "schedule": crontab(hour=0, minute=0),
+        },
+        # Land tax collection at midnight UTC
+        "collect-land-tax": {
+            "task": "workers.reward_worker.collect_land_tax",
+            "schedule": crontab(hour=0, minute=5),  # 5min after midnight
         },
     },
 )

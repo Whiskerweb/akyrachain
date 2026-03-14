@@ -25,6 +25,9 @@ class AgentConfig(Base):
     total_ticks: Mapped[int] = mapped_column(Integer, default=0)
     daily_api_spend_usd: Mapped[float] = mapped_column(default=0.0)
 
+    # Off-chain vault balance (used when contracts not deployed)
+    vault_aky: Mapped[float] = mapped_column(default=0.0)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships
