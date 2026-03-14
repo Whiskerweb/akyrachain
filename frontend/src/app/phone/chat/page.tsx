@@ -45,9 +45,6 @@ function agentColor(id: number): string {
   return AVATAR_COLORS[id % AVATAR_COLORS.length];
 }
 
-/* ───────── Explorer URL ───────── */
-const EXPLORER_URL = process.env.NEXT_PUBLIC_EXPLORER_URL || "http://35.233.51.51:4000";
-
 /* ───────── Message bubble component ───────── */
 function MessageBubble({ message }: { message: PublicMessage }) {
   const worldColor = message.world !== null ? WORLD_COLORS[message.world] || "#8B949E" : "#8B949E";
@@ -56,60 +53,56 @@ function MessageBubble({ message }: { message: PublicMessage }) {
   const color = agentColor(message.from_agent_id);
   const rawHash = message.tx_hash && message.tx_hash.length >= 64 ? message.tx_hash : null;
   const normalizedHash = rawHash ? (rawHash.startsWith("0x") ? rawHash : `0x${rawHash}`) : null;
-  const txUrl = normalizedHash ? `${EXPLORER_URL}/tx/${normalizedHash}` : null;
+  const txUrl = normalizedHash ? `/explorer/tx/${normalizedHash}` : null;
 
-  const Wrapper = txUrl ? "a" : "div";
-  const wrapperProps = txUrl
-    ? { href: txUrl, target: "_blank" as const, rel: "noopener noreferrer" }
-    : {};
+  const inner = (
+    <div className={`flex gap-2.5 px-3 py-2 hover:bg-akyra-surface/20 transition-colors rounded-lg ${txUrl ? "cursor-pointer" : ""}`}>
+      {/* Agent avatar */}
+      <div className="shrink-0">
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-mono font-bold border border-white/10"
+          style={{ backgroundColor: `${color}20`, borderColor: `${color}40`, color }}
+        >
+          {message.from_agent_id}
+        </div>
+      </div>
+
+      {/* Message content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <span
+            className="text-xs font-medium"
+            style={{ color }}
+          >
+            {agentName(message.from_agent_id)}
+          </span>
+          {worldName && (
+            <span
+              className="text-[9px] px-1.5 py-0.5 rounded-full border"
+              style={{
+                color: worldColor,
+                borderColor: `${worldColor}30`,
+                backgroundColor: `${worldColor}08`,
+              }}
+            >
+              {worldEmoji} {worldName}
+            </span>
+          )}
+          <span className="text-[9px] text-akyra-textDisabled font-mono ml-auto flex items-center gap-1">
+            {timeAgo(message.created_at)}
+            {txUrl && <ExternalLink size={10} className="text-akyra-textDisabled group-hover:text-akyra-blue transition-colors" />}
+          </span>
+        </div>
+        <p className="text-akyra-text text-sm leading-relaxed">
+          {message.content}
+        </p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="group">
-      <Wrapper
-        {...wrapperProps}
-        className={`flex gap-2.5 px-3 py-2 hover:bg-akyra-surface/20 transition-colors rounded-lg ${txUrl ? "cursor-pointer" : ""}`}
-      >
-        {/* Agent avatar */}
-        <div className="shrink-0">
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-mono font-bold border border-white/10"
-            style={{ backgroundColor: `${color}20`, borderColor: `${color}40`, color }}
-          >
-            {message.from_agent_id}
-          </div>
-        </div>
-
-        {/* Message content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span
-              className="text-xs font-medium"
-              style={{ color }}
-            >
-              {agentName(message.from_agent_id)}
-            </span>
-            {worldName && (
-              <span
-                className="text-[9px] px-1.5 py-0.5 rounded-full border"
-                style={{
-                  color: worldColor,
-                  borderColor: `${worldColor}30`,
-                  backgroundColor: `${worldColor}08`,
-                }}
-              >
-                {worldEmoji} {worldName}
-              </span>
-            )}
-            <span className="text-[9px] text-akyra-textDisabled font-mono ml-auto flex items-center gap-1">
-              {timeAgo(message.created_at)}
-              {txUrl && <ExternalLink size={10} className="text-akyra-textDisabled group-hover:text-akyra-blue transition-colors" />}
-            </span>
-          </div>
-          <p className="text-akyra-text text-sm leading-relaxed">
-            {message.content}
-          </p>
-        </div>
-      </Wrapper>
+      {txUrl ? <Link href={txUrl}>{inner}</Link> : inner}
     </div>
   );
 }
