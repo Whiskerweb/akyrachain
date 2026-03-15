@@ -1,25 +1,37 @@
 import type { Metadata } from "next";
-import { Press_Start_2P, VT323, DM_Sans } from "next/font/google";
+import {
+  Space_Grotesk,
+  DM_Sans,
+  Barlow_Condensed,
+  JetBrains_Mono,
+} from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const pressStart = Press_Start_2P({
-  weight: "400",
+const spaceGrotesk = Space_Grotesk({
+  weight: "700",
   subsets: ["latin"],
   variable: "--font-heading",
   display: "swap",
 });
 
-const vt323 = VT323({
-  weight: "400",
+const dmSans = DM_Sans({
   subsets: ["latin"],
   variable: "--font-body",
   display: "swap",
 });
 
-const dmSans = DM_Sans({
+const barlowCondensed = Barlow_Condensed({
+  weight: "700",
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-stats",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-mono",
   display: "swap",
 });
 
@@ -37,9 +49,9 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`dark ${pressStart.variable} ${vt323.variable} ${dmSans.variable}`}
+      className={`${spaceGrotesk.variable} ${dmSans.variable} ${barlowCondensed.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="min-h-screen bg-akyra-bg text-akyra-text antialiased font-body overflow-x-hidden selection:bg-akyra-green/30">
+      <body className="min-h-screen bg-akyra-bg text-akyra-text antialiased font-body overflow-x-hidden selection:bg-akyra-green/20">
         <Providers>
           <main className="min-h-screen">{children}</main>
         </Providers>

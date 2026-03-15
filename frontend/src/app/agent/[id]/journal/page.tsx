@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
 function EmotionBadge({ state }: { state: string }) {
-  const color = EMOTION_COLORS[state] || "#8B949E";
+  const color = EMOTION_COLORS[state] || "#8a7f72";
   const label = EMOTION_LABELS[state] || state;
   return (
     <span
@@ -30,7 +30,7 @@ function EmotionBadge({ state }: { state: string }) {
 
 function ThoughtEntry({ thought }: { thought: PrivateThought }) {
   const [expanded, setExpanded] = useState(false);
-  const emotionColor = EMOTION_COLORS[thought.emotional_state || "neutre"] || "#8B949E";
+  const emotionColor = EMOTION_COLORS[thought.emotional_state || "neutre"] || "#8a7f72";
   const actionEmoji = ACTION_EMOJIS[thought.action_type] || "\u{1F504}";
 
   return (
@@ -73,11 +73,55 @@ function ThoughtEntry({ thought }: { thought: PrivateThought }) {
           <div className="flex items-center gap-1.5 mb-2">
             <Brain size={14} className="text-akyra-purple" />
             <span className="text-xs text-akyra-purple font-medium">PENSEE PRIVEE</span>
+            {thought.is_major_event && (
+              <span className="text-[9px] px-1.5 py-0.5 bg-yellow-500/10 text-yellow-500 rounded font-mono border border-yellow-500/30">
+                MAJEUR
+              </span>
+            )}
+            {thought.event_type && (
+              <span className="text-[9px] px-1.5 py-0.5 bg-akyra-surface text-akyra-textSecondary rounded font-mono">
+                {thought.event_type}
+              </span>
+            )}
           </div>
           <p className="text-sm text-akyra-text leading-relaxed italic">
             &ldquo;{thought.thinking}&rdquo;
           </p>
         </div>
+
+        {/* Strategy */}
+        {thought.strategy && (
+          <div className="mt-3 ml-3 pl-3 border-l-2 border-cyan-400/30">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Target size={14} className="text-cyan-400" />
+              <span className="text-xs text-cyan-400 font-medium">STRATEGIE</span>
+            </div>
+            <p className="text-xs text-akyra-textSecondary leading-relaxed">
+              {thought.strategy}
+            </p>
+          </div>
+        )}
+
+        {/* Opinions */}
+        {thought.opinions && Object.keys(thought.opinions).length > 0 && (
+          <div className="mt-3 ml-3 pl-3 border-l-2 border-orange-400/30">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Users size={14} className="text-orange-400" />
+              <span className="text-xs text-orange-400 font-medium">OPINIONS</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(thought.opinions).map(([agent, opinion]) => (
+                <span
+                  key={agent}
+                  className="px-2 py-0.5 rounded bg-akyra-bgSecondary text-[10px] text-akyra-textSecondary"
+                  title={String(opinion)}
+                >
+                  {agent}: {String(opinion)}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Action */}
         <div className="mt-3 ml-3 pl-3 border-l-2 border-akyra-border">
@@ -228,7 +272,7 @@ export default function JournalPage({ params }: { params: { id: string } }) {
                     className="h-full transition-all cursor-pointer hover:opacity-80"
                     style={{
                       width: `${(e.count / totalThoughts) * 100}%`,
-                      backgroundColor: EMOTION_COLORS[e.emotional_state] || "#8B949E",
+                      backgroundColor: EMOTION_COLORS[e.emotional_state] || "#8a7f72",
                     }}
                     title={`${EMOTION_LABELS[e.emotional_state] || e.emotional_state}: ${e.count}`}
                     onClick={() => setEmotionFilter(
@@ -253,7 +297,7 @@ export default function JournalPage({ params }: { params: { id: string } }) {
                   >
                     <span
                       className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: EMOTION_COLORS[e.emotional_state] || "#8B949E" }}
+                      style={{ backgroundColor: EMOTION_COLORS[e.emotional_state] || "#8a7f72" }}
                     />
                     <span className="text-akyra-text">{EMOTION_LABELS[e.emotional_state] || e.emotional_state}</span>
                     <span className="text-akyra-textDisabled">{e.count}</span>

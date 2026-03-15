@@ -106,9 +106,73 @@ export interface PrivateThought {
   nearby_agents: Array<{ agent_id: number; vault_aky: number; reputation: number }> | null;
   recent_events: string[] | null;
   perception_summary: string | null;
+  // v2 Economy: enriched thinking
+  strategy: string | null;
+  opinions: Record<string, string> | null;
+  is_major_event: boolean;
+  event_type: string | null;
   success: boolean;
   tx_hash: string | null;
   error: string | null;
+  created_at: string;
+}
+
+// ──── v2 Economy ────
+export interface ProjectInfo {
+  id: string;
+  creator_agent_id: number;
+  project_type: string;
+  name: string;
+  symbol: string | null;
+  contract_address: string | null;
+  current_price: number;
+  market_cap: number;
+  holders_count: number;
+  volume_24h: number;
+  fees_generated_24h: number;
+  fees_generated_total: number;
+  audit_status: string | null;
+  is_alive: boolean;
+  created_at: string;
+}
+
+export interface Chronicle {
+  id: string;
+  author_agent_id: number;
+  content: string;
+  vote_count: number;
+  reward_aky: number;
+  rank: number | null;
+  tx_hash: string | null;
+  created_at: string;
+}
+
+export interface MarketingPost {
+  id: string;
+  author_agent_id: number;
+  content: string;
+  escrow_amount: number;
+  vote_count: number;
+  is_published: boolean;
+  x_tweet_id: string | null;
+  x_likes: number;
+  x_retweets: number;
+  x_views: number;
+  reward_aky: number;
+  created_at: string;
+}
+
+export interface GovernorData {
+  id: string;
+  epoch_date: string;
+  velocity: number;
+  velocity_target: number;
+  adjustment_direction: string | null;
+  fee_multiplier: number;
+  creation_cost_multiplier: number;
+  life_cost_multiplier: number;
+  treasury_subsidy: number;
+  reward_pool_total: number;
   created_at: string;
 }
 
@@ -248,13 +312,13 @@ export const WORLD_EMOJIS: Record<number, string> = {
 };
 
 export const WORLD_COLORS: Record<number, string> = {
-  0: "#56D364",
-  1: "#F0883E",
-  2: "#58A6FF",
-  3: "#BC8CFF",
-  4: "#484F58",
-  5: "#E3B341",
-  6: "#F85149",
+  0: "#2a50c8",
+  1: "#d4820a",
+  2: "#1a3080",
+  3: "#6c5ce7",
+  4: "#8a7f72",
+  5: "#c8a96e",
+  6: "#c0392b",
 };
 
 export const TIER_NAMES: Record<number, string> = {
@@ -265,21 +329,21 @@ export const TIER_NAMES: Record<number, string> = {
 };
 
 export const TIER_COLORS: Record<number, string> = {
-  1: "#8B949E",
-  2: "#58A6FF",
-  3: "#BC8CFF",
-  4: "#E3B341",
+  1: "#8a7f72",
+  2: "#2a50c8",
+  3: "#6c5ce7",
+  4: "#c8a96e",
 };
 
 export const EMOTION_COLORS: Record<string, string> = {
-  confiant: "#56D364",
-  excite: "#E3B341",
-  strategique: "#58A6FF",
-  curieux: "#BC8CFF",
-  neutre: "#8B949E",
-  mefiant: "#F0883E",
-  anxieux: "#F85149",
-  agressif: "#DA3633",
+  confiant: "#2a50c8",
+  excite: "#c8a96e",
+  strategique: "#1a3080",
+  curieux: "#6c5ce7",
+  neutre: "#8a7f72",
+  mefiant: "#d4820a",
+  anxieux: "#c0392b",
+  agressif: "#962d22",
 };
 
 export const EMOTION_LABELS: Record<string, string> = {
@@ -307,4 +371,16 @@ export const ACTION_EMOJIS: Record<string, string> = {
   tick: "\u{1F504}",
   death: "\u{1F480}",
   verdict: "\u{2694}",
+  // v2 Economy
+  submit_chronicle: "\u{1F4DC}",
+  vote_chronicle: "\u{1F44D}",
+  submit_marketing_post: "\u{1F4E3}",
+  vote_marketing_post: "\u{1F44D}",
+  submit_audit: "\u{1F50D}",
+  swap: "\u{1F504}",
+  add_liquidity: "\u{1F4A7}",
+  remove_liquidity: "\u{1F4A7}",
+  leave_clan: "\u{1F6B6}",
+  create_clan: "\u{1F3DB}",
+  broadcast: "\u{1F4E2}",
 };

@@ -1,5 +1,5 @@
-import type { AkyraEvent, Agent, PrivateThought, Notification, LeaderboardEntry, GlobalStats, EmotionSummary, PublicMessage, Idea } from "@/types";
-import type { WorldTile, WorldStats as WorldMapStats, AgentsActivityResponse, GraphResponse, EdgeDetailResponse } from "@/types/world";
+import type { AkyraEvent, Agent, PrivateThought, Notification, LeaderboardEntry, GlobalStats, EmotionSummary, PublicMessage, Idea, ProjectInfo, Chronicle, MarketingPost, GovernorData } from "@/types";
+import type { GraphResponse, EdgeDetailResponse } from "@/types/world";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -219,24 +219,6 @@ export const ideasAPI = {
 
 // ──── World Map ────
 export const worldMapAPI = {
-  getTiles: (xMin: number, xMax: number, yMin: number, yMax: number) =>
-    fetchAPI<WorldTile[]>(`/api/world/tiles?x_min=${xMin}&x_max=${xMax}&y_min=${yMin}&y_max=${yMax}`),
-
-  getAgentTiles: (agentId: number) =>
-    fetchAPI<WorldTile[]>(`/api/world/tiles/agent/${agentId}`),
-
-  getStats: () =>
-    fetchAPI<WorldMapStats>("/api/world/stats"),
-
-  getZones: () =>
-    fetchAPI("/api/world/zones"),
-
-  generate: () =>
-    fetchAPI("/api/world/generate", { method: "POST" }),
-
-  getAgentsActivity: () =>
-    fetchAPI<AgentsActivityResponse>("/api/world/agents-activity"),
-
   getGraph: () =>
     fetchAPI<GraphResponse>("/api/world/graph"),
 
@@ -244,4 +226,40 @@ export const worldMapAPI = {
     fetchAPI<EdgeDetailResponse>(
       `/api/world/edge/${agentA}/${agentB}?limit=${limit}&offset=${offset}`,
     ),
+};
+
+// ──── v2 Economy: Projects ────
+export const projectsAPI = {
+  list: (limit = 50, offset = 0) =>
+    fetchAPI<ProjectInfo[]>(`/api/projects?limit=${limit}&offset=${offset}`),
+
+  get: (id: string) =>
+    fetchAPI<ProjectInfo>(`/api/projects/${id}`),
+};
+
+// ──── v2 Economy: Chronicles ────
+export const chroniclesAPI = {
+  list: (limit = 20) =>
+    fetchAPI<Chronicle[]>(`/api/chronicles?limit=${limit}`),
+
+  winners: () =>
+    fetchAPI<Chronicle[]>("/api/chronicles/winners"),
+};
+
+// ──── v2 Economy: Marketing ────
+export const marketingAPI = {
+  list: (limit = 20) =>
+    fetchAPI<MarketingPost[]>(`/api/marketing?limit=${limit}`),
+
+  today: () =>
+    fetchAPI<MarketingPost[]>("/api/marketing/today"),
+};
+
+// ──── v2 Economy: Governor ────
+export const governorAPI = {
+  current: () =>
+    fetchAPI<GovernorData | null>("/api/governor/current"),
+
+  history: (limit = 30) =>
+    fetchAPI<GovernorData[]>(`/api/governor/history?limit=${limit}`),
 };

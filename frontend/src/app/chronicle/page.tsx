@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
@@ -944,11 +944,57 @@ function DayEdition({
 /* ═══════════════ Main Page ═══════════════ */
 
 export default function ChroniclePage() {
-  const { data: events = [], isLoading } = useQuery<AkyraEvent[]>({
-    queryKey: ["feed", "global", 500],
-    queryFn: () => feedAPI.global(500),
+  const PAGE_SIZE = 500;
+  const [olderEvents, setOlderEvents] = useState<AkyraEvent[]>([]);
+  const [offset, setOffset] = useState(PAGE_SIZE);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Initial load (latest events, auto-refreshed)
+  const { data: latestEvents = [], isLoading } = useQuery<AkyraEvent[]>({
+    queryKey: ["feed", "global", PAGE_SIZE],
+    queryFn: () => feedAPI.global(PAGE_SIZE),
     refetchInterval: 30_000,
   });
+
+  // Detect if initial batch is smaller than PAGE_SIZE (no more to load)
+  useEffect(() => {
+    if (latestEvents.length > 0 && latestEvents.length < PAGE_SIZE) {
+      setHasMore(false);
+    }
+  }, [latestEvents.length]);
+
+  // Merge latest + older, deduplicated
+  const allEvents = useMemo(() => {
+    if (olderEvents.length === 0) return latestEvents;
+    const seen = new Set(latestEvents.map((e) => e.id));
+    const unique = olderEvents.filter((e) => !seen.has(e.id));
+    return [...latestEvents, ...unique];
+  }, [latestEvents, olderEvents]);
+
+  // Load older events
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const older = await feedAPI.global(PAGE_SIZE, offset);
+      if (older.length === 0) {
+        setHasMore(false);
+      } else {
+        setOlderEvents((prev) => {
+          const existingIds = new Set(prev.map((e) => e.id));
+          const newEvents = older.filter((e) => !existingIds.has(e.id));
+          return [...prev, ...newEvents];
+        });
+        setOffset((prev) => prev + PAGE_SIZE);
+        if (older.length < PAGE_SIZE) setHasMore(false);
+      }
+    } catch {
+      // silently fail, user can retry
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [offset, loadingMore, hasMore]);
 
   const { data: stats } = useQuery<GlobalStats>({
     queryKey: ["global-stats"],
@@ -961,11 +1007,11 @@ export default function ChroniclePage() {
   const currentDayNumber = getDayNumber(today);
 
   const dayGroups = useMemo(() => {
-    const grouped = groupByDay(events);
+    const grouped = groupByDay(allEvents);
     return Array.from(grouped.entries()).sort(
       ([a], [b]) => b.localeCompare(a),
     );
-  }, [events]);
+  }, [allEvents]);
 
   return (
     <div className="min-h-screen bg-akyra-bg">
@@ -1049,16 +1095,49 @@ export default function ChroniclePage() {
               </p>
             </Card>
           ) : (
-            <StaggerContainer>
-              {dayGroups.map(([dayKey, dayEvents], index) => (
-                <DayEdition
-                  key={dayKey}
-                  dayKey={dayKey}
-                  events={dayEvents}
-                  index={index}
-                />
-              ))}
-            </StaggerContainer>
+            <>
+              <StaggerContainer>
+                {dayGroups.map(([dayKey, dayEvents], index) => (
+                  <DayEdition
+                    key={dayKey}
+                    dayKey={dayKey}
+                    events={dayEvents}
+                    index={index}
+                  />
+                ))}
+              </StaggerContainer>
+
+              {/* Load more past editions */}
+              {hasMore && (
+                <div className="text-center mt-8 mb-4">
+                  <button
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-akyra-surface/60 border border-akyra-green/30 rounded-lg text-akyra-green text-sm font-medium hover:bg-akyra-green/10 hover:border-akyra-green/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-akyra-green/30 border-t-akyra-green rounded-full animate-spin" />
+                        Chargement...
+                      </>
+                    ) : (
+                      <>Charger les editions precedentes</>
+                    )}
+                  </button>
+                  <p className="text-akyra-textDisabled text-[10px] mt-2">
+                    {allEvents.length} evenements charges &mdash; {dayGroups.length} edition{dayGroups.length > 1 ? "s" : ""}
+                  </p>
+                </div>
+              )}
+
+              {!hasMore && dayGroups.length > 1 && (
+                <div className="text-center mt-8 mb-4">
+                  <p className="text-akyra-textDisabled text-xs italic">
+                    Toutes les editions chargees &mdash; {dayGroups.length} editions au total
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           {/* Footer */}

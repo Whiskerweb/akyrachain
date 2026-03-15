@@ -123,7 +123,7 @@ function VaultSparkline({ events, currentVault }: { events: AkyraEvent[]; curren
 
   // Determine trend color
   const trend = vaultHistory[vaultHistory.length - 1] >= vaultHistory[0];
-  const color = trend ? "#56D364" : "#F85149";
+  const color = trend ? "#2a50c8" : "#c0392b";
 
   return (
     <div className="relative">
@@ -157,7 +157,7 @@ function VaultSparkline({ events, currentVault }: { events: AkyraEvent[]; curren
 // ──── Thought Preview Card ────
 function ThoughtPreview({ thought }: { thought: PrivateThought }) {
   const emoji = EMOTION_EMOJIS[thought.emotional_state || "neutre"] || "\u{1F610}";
-  const color = EMOTION_COLORS[thought.emotional_state || "neutre"] || "#8B949E";
+  const color = EMOTION_COLORS[thought.emotional_state || "neutre"] || "#8a7f72";
   const truncated = thought.thinking.length > 100
     ? thought.thinking.slice(0, 100) + "..."
     : thought.thinking;

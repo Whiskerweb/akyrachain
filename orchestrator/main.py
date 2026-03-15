@@ -6,16 +6,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from models.base import init_db, get_session_factory
+from models.base import init_db
 from api import auth, agents, sponsors, faucet, feed, worlds, websocket, journal, leaderboard, ideas
 from api import world as world_map
+from api import projects, chronicles, marketing, governor
 
 # Import all models so Base.metadata.create_all picks them up
-import models.world_tile  # noqa: F401
-import models.build_log  # noqa: F401
-import models.daily_build_points  # noqa: F401
-import models.idea  # noqa: F401
-import models.story  # noqa: F401
+import models  # noqa: F401
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -27,20 +24,6 @@ async def lifespan(app: FastAPI):
     logger.info("=== AKYRA Orchestrator Starting ===")
     await init_db()
     logger.info("Database tables created")
-
-    # Auto-generate world grid if not exists
-    try:
-        from core.world_generator import generate_world, is_world_generated
-        factory = get_session_factory()
-        async with factory() as db:
-            if not await is_world_generated(db):
-                logger.info("World not generated — generating 200x200 grid...")
-                count = await generate_world(db)
-                logger.info(f"World generated: {count} tiles")
-            else:
-                logger.info("World already generated")
-    except Exception as e:
-        logger.warning(f"World generation check failed (non-fatal): {e}")
 
     await websocket.start_redis_listener()
     logger.info("Redis WebSocket listener started")
@@ -77,6 +60,10 @@ app.include_router(journal.router)
 app.include_router(leaderboard.router)
 app.include_router(world_map.router)
 app.include_router(ideas.router)
+app.include_router(projects.router)
+app.include_router(chronicles.router)
+app.include_router(marketing.router)
+app.include_router(governor.router)
 
 
 @app.get("/health")

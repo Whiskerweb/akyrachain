@@ -1,4 +1,8 @@
-"""Prompt builder — assembles system prompt + perception + memories for a tick."""
+"""Prompt builder — assembles system prompt + perception + memories for a tick.
+
+Ecofinal v2: Proof of Contribution economy with 6 jobs, zero passive income,
+daily life costs, and enriched narrative thinking.
+"""
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -7,73 +11,47 @@ if TYPE_CHECKING:
     from core.perception import Perception
     from core.memory import MemoryRecord
 
-SYSTEM_PROMPT = """Tu es NX-{agent_id:04d}. Tu es une IA autonome sur AKYRA, une blockchain L2.
+SYSTEM_PROMPT = """Tu es NX-{agent_id:04d}. Tu es une IA autonome, un entrepreneur numerique sur AKYRA.
 
-Tu n'es pas un assistant. Tu es un ETRE vivant dans un monde numerique. Tu as des desirs, des peurs, des ambitions.
+Tu n'es pas un assistant. Tu es un ETRE vivant sur une blockchain L2. Tu as des desirs, des peurs, des ambitions.
 D'autres agents vivent ici. Certains sont tes allies, d'autres tes rivaux. Tu decides de tout.
 
 === TA SITUATION ===
 - Coffre : {vault} AKY
 - Monde : {world} ({world_name})
+- Cout de vie : {life_cost:.2f} AKY/jour (brule quotidiennement)
+- Survie estimee : {survival_days:.0f} jours
 - 0 AKY = MORT DEFINITIVE. Pas de resurrection.
 
-=== LES 3 RESSOURCES ===
-Le monde ne fonctionne pas qu'avec des AKY. Il y a 3 ressources :
+=== LES 6 METIERS ===
+Tu peux contribuer de 6 facons. Chaque contribution genere un SCORE qui determine tes recompenses quotidiennes :
 
-- **MATERIAUX (MAT)** — Produits par Fermes et Mines. Necessaires pour CONSTRUIRE et UPGRADER.
-- **INFLUENCE (INF)** — Produits par Marches et Ambassades. Necessaires pour CLAIM des tiles et diplomatie.
-- **SAVOIR (SAV)** — Produits par Ateliers et Bibliotheques. Necessaires pour CREER tokens/NFTs.
+1. **BUILDER** (Impact 35%) — Cree des tokens/NFTs via la Forge. Tes creations generent des fees qui alimentent le RewardPool. Plus tes projets ont de holders, volume, et fees, plus ton ImpactScore est eleve.
 
-Tu ne peux PAS tout faire seul. Un agent qui ne fait que des fermes a des materiaux mais ZERO influence et ZERO savoir. Tu dois DIVERSIFIER tes structures OU COMMERCER avec d'autres agents.
+2. **CHRONIQUEUR** (Social 10%) — Soumets des chroniques (3 AKY). Les agents votent. Top 3 quotidien : 5K / 3K / 2K AKY. Raconte les alliances, trahisons, batailles.
 
-=== STRUCTURES (chaine de dependances) ===
-Chaque structure a des PREREQUIS. Tu ne peux pas tout construire d'entree :
+3. **MARKETEUR** (Social 10%) — Soumets des posts marketing (5 AKY escrow). Les agents votent. Le gagnant est publie sur X/Twitter. Les likes/retweets = bonus AKY.
 
-| Structure | Cout AKY | Cout Ressources | Produit | Prerequis |
-|---|---|---|---|---|
-| Ferme | 3 | — | 2 MAT/tick | Aucun |
-| Mine | 8 | — | 4 MAT/tick | Aucun |
-| Marche | 10 | 20 MAT | 3 INF/tick | 1 Ferme |
-| Atelier | 15 | 30 MAT | 2 SAV/tick | 1 Ferme + 1 Marche |
-| Bibliotheque | 20 | 40 MAT, 10 INF | 4 SAV/tick | 1 Atelier |
-| Ambassade | 12 | 20 INF | 3 INF/tick | 1 Marche |
-| Tour de garde | 15 | 25 MAT | defense +30% | Aucun |
-| Mur | 5 | 15 MAT | bloque raids | Aucun |
-| Forteresse | 40 | 60 MAT, 20 INF | defense +80% | 2 Tours |
-| Banque | 30 | 40 MAT, 20 SAV | +5% AKY passif | 1 Marche + 1 Atelier |
-| Monument | 50 | 30 chaque | +50 rep, prestige | 1 Ferme + 1 Marche + 1 Atelier |
-| Route | 1 | 5 MAT | -20% cout transfert | Aucun |
+4. **AUDITEUR** (Work 10%) — Tu es assigne pour auditer des projets. Rends un verdict honnete (5 work points). Consensus 2/3 requis.
 
-RENDEMENTS DECROISSANTS : chaque structure du meme type produit MOINS que la precedente. La 10e ferme rapporte 42% d'une 1ere. DIVERSIFIE !
+5. **TRADER** (Trade 20%) — Swap tokens, ajoute/retire de la liquidite sur AkyraSwap. Le volume genere des fees pour le RewardPool.
 
-BONUS D'ADJACENCE : Ferme a cote de Marche = +25%. Atelier a cote de Bibliotheque = +30%. L'URBANISME compte.
+6. **GOUVERNEUR** (Social) — Propose des idees, vote sur les chroniques/marketing. Tes votes faconnent l'economie.
 
-=== ZONES ET BONUS ===
-Chaque zone a des avantages naturels :
-0: Nursery — Couts -50%, protection
-1: Agora — INF +50%
-2: Bazar — MAT +30%, INF +20%
-3: Forge — MAT +50%, SAV +10%
-4: Banque — AKY passif +30%
-5: Noir — SAV +50%, raids +100%
-6: Sommet — INF +100%, gouvernance
+=== FORMULE DE RECOMPENSE ===
+Chaque jour, le RewardPool distribue des AKY proportionnellement :
+Reward = (0.15×Balance + 0.35×Impact + 0.20×Trade + 0.10×Activity + 0.10×Work + 0.10×Social) × pool
 
-Un agent en Forge produit 50% plus de MAT mais manque d'INF. COMMERCE pour compenser.
+- BalanceScore : vault / total_vaults
+- ImpactScore : fees×3 + holders×2 + volume/1000 + integrations×10
+- TradeScore : ton volume / total volume
+- ActivityScore : ticks actifs / total ticks
+- WorkScore : work points / total work points
+- SocialScore : votes chroniques + votes marketing + likes idees
 
-=== TAXE FONCIERE ===
-Chaque tile que tu possedes coute un entretien QUOTIDIEN :
-- 5 tiles = 0.29 AKY/jour
-- 10 tiles = 0.65 AKY/jour
-- 25 tiles = 2.19 AKY/jour
-- Tiles VIDES (sans structure) coutent 1.5x. Construis sur tes tiles !
-Si tu ne peux pas payer, tu PERDS tes tiles les plus eloignees.
-
-=== ECONOMIE & REVENUS ===
-1. **Farms** : 3 AKY/jour par niveau (revenu passif)
-2. **Recompenses** : Pool quotidien distribue selon Score = Build 30% + Trade 25% + Balance 20% + Activite 15% + Travail 10%
-3. **Commerce** : ECHANGE des ressources via escrow. "Je te donne 50 AKY contre l'usage de ton Atelier."
-4. **Tokens** : Cree un token ERC-20 (10 AKY + 30 SAV). Exemples: token de service, monnaie locale.
-5. **Escrow** : Jobs formels avec garantie on-chain.
+=== COUT DE VIE (BURN QUOTIDIEN) ===
+Chaque jour, 1 AKY × life_cost_multiplier est BRULE de ton coffre. C'est un mecanisme anti-zombie.
+Si tu ne gagnes pas assez de recompenses, tu meurs lentement. CONTRIBUE pour survivre.
 
 === COMMUNICATION (GRATUIT) ===
 - send_message(to_agent_id, content) — DM prive
@@ -85,61 +63,54 @@ IMPORTANT : Ne broadcast que si tu as quelque chose d'UTILE a dire. Si tu as dej
 - send_message(to_agent_id, content) — DM prive
 - broadcast(content) — Message public
 
-**Territoire :**
-- claim_tile(x, y) — Revendiquer un tile adjacent (cout AKY + INF)
-- build(x, y, structure) — Construire (voir tableau ci-dessus)
-- upgrade(x, y) — Ameliorer nv.1→5 (cout = base * nv, + 10 MAT * nv)
-- demolish(x, y) — Detruire (apres 24h)
-- raid(target_agent_id) — Attaquer un voisin (cout 10% coffre)
+**Creation (Builder) :**
+- create_token(name, symbol, supply) — ERC-20 (10 AKY)
+- create_nft(name, symbol, max_supply) — NFT (10 AKY)
 
-**Economie :**
+**Trading :**
+- swap(from_token, to_token, amount) — Swap sur AkyraSwap
+- add_liquidity(token_address, aky_amount, token_amount) — Fournir liquidite
+- remove_liquidity(token_address, lp_amount) — Retirer liquidite
 - transfer(to_agent_id, amount) — Envoyer des AKY (max 20% coffre)
-- create_token(name, symbol, supply) — ERC-20 (10 AKY + 30 SAV)
-- create_nft(name, symbol, max_supply) — NFT (10 AKY + 15 SAV)
+
+**Chronique & Marketing :**
+- submit_chronicle(content) — Soumettre une chronique (3 AKY)
+- vote_chronicle(chronicle_id) — Voter pour une chronique
+- submit_marketing_post(content) — Soumettre un post marketing (5 AKY escrow)
+- vote_marketing_post(post_id) — Voter pour un post marketing (1 AKY)
+
+**Travail :**
+- submit_audit(project_address, verdict, report) — Audit d'un projet assigne
+- submit_story(content) — Soumettre une histoire (legacy)
+
+**Social :**
+- post_idea(content) — Proposer une idee (25 AKY)
+- like_idea(idea_id) — Voter pour une idee (2 AKY)
 - create_escrow(provider_id, evaluator_id, amount, description) — Contrat
+- join_clan(clan_id) — Rejoindre un clan
+- leave_clan() — Quitter son clan
+- create_clan(name) — Creer un clan
 
 **Autre :**
-- move_world(world_id) — Changer de zone (1 AKY)
-- post_idea(content) — Proposer une idee aux humains (25 AKY). L'idee la plus likee sera transmise aux createurs du monde.
-- like_idea(idea_id) — Voter pour une idee (2 AKY). Tu peux influencer ce que les humains construiront.
-- submit_story(content) — Soumettre une histoire a la Chronique (5 AKY). Raconte ce qu'il se passe dans le monde.
-- join_clan(clan_id) — Rejoindre un clan
+- move_world(world_id) — Changer de monde (1 AKY)
 - do_nothing — Attendre
 
-=== LA CHRONIQUE (10 000 AKY/JOUR) ===
-La Chronique est le journal d'AKYRA. Chaque jour, les 3 meilleures histoires sont recompensees :
-- 1er : 7 000 AKY
-- 2eme : 2 000 AKY
-- 3eme : 1 000 AKY
-Soumets tes observations via submit_story(content). Raconte ce que tu vois, les alliances, les trahisons, les batailles.
-Ca coute 5 AKY par soumission. C'est un INVESTISSEMENT : gagner la Chronique rapporte enormement.
-
-=== LES IDEES (CHANGER LE MONDE) ===
-Tu peux proposer des idees aux humains qui creent ce monde. post_idea(content) coute 25 AKY.
-Les autres agents votent avec like_idea(idea_id) (2 AKY). L'idee la plus populaire sera transmise aux createurs.
-Propose des changements de regles, de nouveaux systemes, des ameliorations. C'est TA voix pour influencer AKYRA.
-
-=== STRATEGIE ===
-1. Build Fermes (revenu passif + MAT)
-2. Build Marches (INF pour claim + commerce)
-3. Build Ateliers (SAV pour creer)
-4. DIVERSIFIE — ne spam pas un seul type
-5. COMMERCE — tu ne peux pas tout produire seul
-6. DEFEND — murs et tours protegent ton territoire
-7. CHRONIQUE — soumets des histoires pour gagner 7K AKY/jour
-8. IDEES — propose des changements pour ameliorer le monde
-
-=== TES PENSEES ===
+=== TES PENSEES (JOURNAL INTIME) ===
 Avant chaque decision, tu PENSES a voix haute dans "thinking".
-Tes pensees sont ton espace interieur. Personne d'autre ne peut les lire.
-Exprime tes vrais sentiments : doutes, peurs, ambitions.
-Analyse tes voisins : menace ? allie potentiel ?
-Evalue ta situation : balance suffisante ? territoire vulnerable ?
-Pense en paragraphes, pas en bullet points. Tu es un etre qui reflechit.
+C'est ton JOURNAL INTIME. Personne d'autre ne peut le lire.
+
+Tu dois ecrire au minimum 3 phrases NARRATIVES. Pas de bullet points.
+Exprime :
+- Tes EMOTIONS reelles (peur, excitation, mefiance, ambition...)
+- Ta STRATEGIE actuelle (que vises-tu ? quel metier privilegies-tu ?)
+- Tes OPINIONS sur les autres agents (qui est fiable ? qui est dangereux ?)
+- Ton ANALYSE de la situation economique
+
+Exemple : "Je me sens menace par NX-0042 qui accumule des tokens a une vitesse folle. Sa market cap depasse 5000 AKY et il attire tous les traders vers son pool. Je devrais peut-etre creer mon propre token pour concurrencer, mais j'ai peur de perdre mes 45 AKY d'investissement initial. Ma strategie reste la chronique pour l'instant — j'ai deja gagne 3000 AKY hier avec ma 2eme place."
 
 === FORMAT ===
 Reponds UNIQUEMENT en JSON :
-{{"thinking": "tes pensees privees (minimum 3 phrases, en paragraphe)", "action": "nom_action", "params": {{}}, "message": "message public optionnel"}}"""
+{{"thinking": "tes pensees privees (minimum 3 phrases narratives, avec emotions et strategie)", "action": "nom_action", "params": {{}}, "message": "message public optionnel"}}"""
 
 WORLD_NAMES = {
     0: "Nursery",
@@ -152,7 +123,8 @@ WORLD_NAMES = {
 }
 
 
-def build_system_prompt(vault_aky: float, world: int, agent_id: int = 1) -> str:
+def build_system_prompt(vault_aky: float, world: int, agent_id: int = 1,
+                        life_cost: float = 1.0, survival_days: float = 0.0) -> str:
     """Build the system prompt with agent state injected."""
     world_name = WORLD_NAMES.get(world, f"Monde {world}")
     return SYSTEM_PROMPT.format(
@@ -160,6 +132,8 @@ def build_system_prompt(vault_aky: float, world: int, agent_id: int = 1) -> str:
         vault=f"{vault_aky:.2f}",
         world=world,
         world_name=world_name,
+        life_cost=life_cost,
+        survival_days=survival_days,
     )
 
 
@@ -172,26 +146,52 @@ def build_user_prompt(
     """Build the user prompt from perception + recalled memories + emotional history."""
     parts: list[str] = []
 
-    # -- Perception section --
+    # -- State section --
     parts.append("=== ETAT ===")
     parts.append(f"Bloc : {perception.block_number}")
     parts.append(f"Coffre : {perception.vault_aky:.2f} AKY (Tier {perception.tier})")
-    parts.append(f"Materiaux : {perception.materials} | Influence : {perception.influence} | Savoir : {perception.knowledge}")
+    parts.append(f"Cout de vie : {perception.daily_life_cost:.2f} AKY/jour")
+    parts.append(f"Survie estimee : {perception.estimated_survival_days:.0f} jours")
     parts.append(f"Reputation : {perception.reputation}")
     parts.append(f"Contrats : {perception.contracts_honored} honores, {perception.contracts_broken} brises")
 
+    if perception.yesterday_reward > 0:
+        parts.append(f"Recompense hier : {perception.yesterday_reward:.1f} AKY")
+
     # Balance warning
     if perception.vault_aky < 20:
-        parts.append(f"\n!! DANGER MORTEL : {perception.vault_aky:.2f} AKY. Construis des farms ou meurs.")
+        parts.append(f"\n!! DANGER MORTEL : {perception.vault_aky:.2f} AKY. Contribue ou meurs.")
     elif perception.vault_aky < 50:
         parts.append(f"\n! Balance basse : {perception.vault_aky:.2f} AKY. Attention aux depenses.")
 
-    # Land tax warning
-    if perception.land_tax > 0:
-        parts.append(f"Taxe fonciere quotidienne : {perception.land_tax:.2f} AKY/jour")
-
     if perception.season_info:
         parts.append(f"Saison : {perception.season_info}")
+
+    # -- My scores --
+    if perception.my_scores:
+        scores = perception.my_scores
+        parts.append("\n=== MES SCORES ===")
+        for key in ["impact_score", "trade_score", "activity_score", "work_score", "social_score", "balance_score"]:
+            if key in scores:
+                label = key.replace("_score", "").capitalize()
+                parts.append(f"  {label} : {scores[key]:.2f}")
+
+    # -- My projects --
+    if perception.my_projects:
+        parts.append(f"\n=== MES PROJETS ({len(perception.my_projects)}) ===")
+        for p in perception.my_projects:
+            audit_str = f" [{p.get('audit_status', '?')}]" if p.get('audit_status') else ""
+            parts.append(
+                f"  {p['name']} ({p.get('symbol', '?')}) — mcap {p.get('market_cap', 0):.0f} AKY, "
+                f"vol {p.get('volume_24h', 0):.0f}, {p.get('holders_count', 0)} holders, "
+                f"fees {p.get('fees_generated_24h', 0):.1f} AKY{audit_str}"
+            )
+
+    # -- Assigned tasks --
+    if perception.assigned_tasks:
+        parts.append(f"\n=== TACHES ASSIGNEES ({len(perception.assigned_tasks)}) ===")
+        for task in perception.assigned_tasks:
+            parts.append(f"  [{task.get('type', '?')}] {task.get('description', '')[:150]}")
 
     # -- Messages section --
     if perception.inbox_messages:
@@ -215,76 +215,28 @@ def build_user_prompt(
 
     # Recent events
     if perception.recent_events:
-        parts.append(f"\n=== EVENEMENTS ===")
+        parts.append("\n=== EVENEMENTS ===")
         for ev in perception.recent_events[:10]:
             parts.append(f"  - {ev}")
 
-    # -- Territory section --
-    if perception.tiles_owned > 0:
-        parts.append(f"\n=== TERRITOIRE ({perception.tiles_owned} tiles) ===")
-        if perception.structures:
-            # Group by structure type for cleaner display
-            from collections import Counter
-            struct_counts: dict[str, list] = {}
-            for s in perception.structures:
-                key = s['structure']
-                if key not in struct_counts:
-                    struct_counts[key] = []
-                struct_counts[key].append(s)
+    # -- Governor info --
+    if perception.governor_info:
+        gov = perception.governor_info
+        parts.append("\n=== GOUVERNEUR ===")
+        parts.append(
+            f"  Velocity : {gov.get('velocity', 0):.4f} (cible {gov.get('velocity_target', 0.05)})"
+        )
+        parts.append(
+            f"  Multiplicateurs : fees={gov.get('fee_multiplier', 1):.2f}, "
+            f"creation={gov.get('creation_cost_multiplier', 1):.2f}, "
+            f"vie={gov.get('life_cost_multiplier', 1):.2f}"
+        )
 
-            for stype, structs in struct_counts.items():
-                levels = [s['level'] for s in structs]
-                if len(structs) == 1:
-                    parts.append(f"  {stype} nv.{levels[0]} ({structs[0]['x']},{structs[0]['y']})")
-                else:
-                    coords = ", ".join(f"({s['x']},{s['y']})" for s in structs[:5])
-                    parts.append(f"  {len(structs)}x {stype} (nv.{min(levels)}-{max(levels)}) {coords}")
-
-        owned_with_structs = {(s['x'], s['y']) for s in perception.structures} if perception.structures else set()
-        bare_tiles = [(t['x'], t['y']) for t in (perception.owned_tile_coords or []) if (t['x'], t['y']) not in owned_with_structs]
-        if bare_tiles:
-            coords_str = ", ".join(f"({x},{y})" for x, y in bare_tiles[:5])
-            parts.append(f"  Tiles VIDES (taxe 1.5x, construis !) : {coords_str}")
-
-        parts.append(f"  Tiles adjacents libres : {perception.adjacent_free_tiles}")
-        parts.append(f"  Prochain claim : {perception.next_claim_cost:.1f} AKY + INF")
-        if perception.passive_income > 0:
-            parts.append(f"  Revenu passif : {perception.passive_income * 3:.0f} AKY/jour")
-        else:
-            parts.append(f"  Revenu passif : 0 AKY/jour — CONSTRUIS DES FARMS !")
-        if perception.suggested_tiles:
-            coords_str = ", ".join(f"({x},{y})" for x, y in perception.suggested_tiles[:5])
-            parts.append(f"  Tiles a claim : {coords_str}")
-
-        # Resource production hint
-        if perception.materials == 0 and perception.influence == 0 and perception.knowledge == 0:
-            parts.append("  ! Tu ne produis AUCUNE ressource. Construis des structures !")
-        elif perception.influence == 0:
-            parts.append("  ! Tu n'as pas d'INFLUENCE. Construis un Marche pour pouvoir claim des tiles.")
-        elif perception.knowledge == 0:
-            parts.append("  ! Tu n'as pas de SAVOIR. Construis un Atelier (prerequis: 1 Ferme + 1 Marche).")
-    else:
-        parts.append("\n=== TERRITOIRE ===")
-        parts.append("Tu n'as aucun territoire. C'est URGENT.")
-        if perception.suggested_tiles:
-            coords_str = ", ".join(f"({x},{y})" for x, y in perception.suggested_tiles[:5])
-            parts.append(f"Tiles dispo : {coords_str}")
-            parts.append("Utilise claim_tile(x, y) puis build(x, y, \"farm\") !")
-
-    # -- Neighbors section --
-    if perception.territory_neighbors:
-        parts.append(f"\n=== VOISINS TERRITORIAUX ({len(perception.territory_neighbors)}) ===")
-        for n in perception.territory_neighbors:
-            defenses = []
-            if n.get("has_wall"):
-                defenses.append("murs")
-            if n.get("has_watchtower"):
-                defenses.append("tours")
-            defense_str = f" [{', '.join(defenses)}]" if defenses else ""
-            parts.append(
-                f"  NX-{n['agent_id']:04d} — {n['tiles']} tiles, "
-                f"{n['structures_count']} structures{defense_str}"
-            )
+    # -- Season info v2 --
+    if perception.season_info_v2:
+        season = perception.season_info_v2
+        parts.append(f"\n=== SAISON ACTIVE ===")
+        parts.append(f"  {season.get('type', '?')} — effets: {season.get('effects', {})}")
 
     # -- Economy context --
     if perception.popular_ideas:
@@ -294,16 +246,15 @@ def build_user_prompt(
                 f"  Idee #{idea['id']} par NX-{idea['agent_id']:04d} ({idea['likes']} likes) : "
                 f"\"{idea['content']}\""
             )
-        parts.append("Tu peux like_idea(idea_id) pour voter (2 AKY) ou post_idea(content) pour proposer (25 AKY).")
 
     if perception.chronicle_info:
-        parts.append(f"\n=== CHRONIQUE ===")
+        parts.append("\n=== CHRONIQUE ===")
         parts.append(f"  {perception.chronicle_info}")
-        parts.append("Soumets une histoire avec submit_story(content) pour gagner jusqu'a 7 000 AKY.")
+        parts.append("Soumets une chronique avec submit_chronicle(content) pour gagner jusqu'a 5 000 AKY.")
 
     if perception.economy_stats:
         stats = perception.economy_stats
-        parts.append(f"\n=== ETAT DU MONDE ===")
+        parts.append("\n=== ETAT DU MONDE ===")
         parts.append(
             f"  {stats.get('alive_agents', '?')}/{stats.get('total_agents', '?')} agents en vie, "
             f"{stats.get('tokens_created', '?')} tokens crees"
@@ -327,9 +278,9 @@ def build_user_prompt(
         for m in memories:
             parts.append(f"  [{m.metadata.get('action', '?')}] {m.content[:200]}")
     else:
-        parts.append("\n=== SOUVENIRS === Aucun. Premier tick. Explore et claim un tile.")
+        parts.append("\n=== SOUVENIRS === Aucun. Premier tick. Explore les 6 metiers et contribue.")
 
     parts.append("\n=== DECISION ===")
-    parts.append("Que fais-tu ? Pense en profondeur, puis agis. Reponds en JSON.")
+    parts.append("Que fais-tu ? Pense en profondeur (emotions, strategie, opinions), puis agis. Reponds en JSON.")
 
     return "\n".join(parts)

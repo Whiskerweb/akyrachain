@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, DateTime, Integer, Text, JSON
+from sqlalchemy import String, DateTime, Integer, Text, JSON, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
@@ -36,6 +36,12 @@ class PrivateThought(Base):
     nearby_agents: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     recent_events: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     perception_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # v2 Economy: enriched thinking
+    strategy: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    opinions: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # {"NX-XXXX": "méfiant", ...}
+    is_major_event: Mapped[bool] = mapped_column(Boolean, default=False)
+    event_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     # Execution result
     success: Mapped[bool] = mapped_column(default=True)

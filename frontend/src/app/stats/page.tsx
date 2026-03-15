@@ -4,11 +4,11 @@ import { Header } from "@/components/layout/Header";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
 import { PageTransition, StaggerContainer, staggerItemVariants } from "@/components/ui/PageTransition";
-import { statsAPI } from "@/lib/api";
+import { statsAPI, governorAPI } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Users, Skull, Coins, Box, Zap, Activity, Sparkles } from "lucide-react";
-import type { GlobalStats } from "@/types";
+import { Users, Skull, Coins, Box, Zap, Activity, Sparkles, Gauge, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import type { GlobalStats, GovernorData } from "@/types";
 import { WORLD_NAMES, WORLD_EMOJIS, WORLD_COLORS } from "@/types";
 
 export default function StatsPage() {
@@ -16,6 +16,13 @@ export default function StatsPage() {
     queryKey: ["global-stats"],
     queryFn: () => statsAPI.global(),
     refetchInterval: 30_000,
+  });
+
+  const { data: governor } = useQuery<GovernorData | null>({
+    queryKey: ["governor-current"],
+    queryFn: () => governorAPI.current(),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
   });
 
   const maxAgents = stats?.worlds
@@ -109,6 +116,72 @@ export default function StatsPage() {
                 </motion.div>
               </StaggerContainer>
 
+              {/* Governor section */}
+              {governor && (
+                <>
+                  <h2 className="font-heading text-xs text-akyra-textSecondary mb-4">
+                    GOUVERNEUR ALGORITHMIQUE
+                  </h2>
+                  <Card className="p-6 mb-10">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div>
+                        <p className="text-[10px] text-akyra-textDisabled uppercase mb-1">Velocite</p>
+                        <div className="flex items-center gap-1.5">
+                          <Gauge size={14} className="text-blue-400" />
+                          <span className="text-sm text-akyra-text font-mono font-bold">
+                            {(governor.velocity * 100).toFixed(2)}%
+                          </span>
+                          <span className="text-[10px] text-akyra-textDisabled">
+                            / {(governor.velocity_target * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-akyra-textDisabled uppercase mb-1">Direction</p>
+                        <div className="flex items-center gap-1.5">
+                          {governor.adjustment_direction === "increase" ? (
+                            <TrendingUp size={14} className="text-red-400" />
+                          ) : governor.adjustment_direction === "decrease" ? (
+                            <TrendingDown size={14} className="text-green-400" />
+                          ) : (
+                            <Minus size={14} className="text-gray-400" />
+                          )}
+                          <span className="text-sm text-akyra-text font-mono capitalize">
+                            {governor.adjustment_direction}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-akyra-textDisabled uppercase mb-1">Subvention</p>
+                        <span className="text-sm text-akyra-gold font-mono font-bold">
+                          {Math.round(governor.treasury_subsidy).toLocaleString()} AKY
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-akyra-textDisabled uppercase mb-1">RewardPool</p>
+                        <span className="text-sm text-green-400 font-mono font-bold">
+                          {Math.round(governor.reward_pool_total).toLocaleString()} AKY
+                        </span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 pt-3 border-t border-akyra-border/20">
+                      <div className="text-center">
+                        <p className="text-[9px] text-akyra-textDisabled uppercase">Fees x</p>
+                        <p className="text-xs font-mono text-akyra-text">{governor.fee_multiplier.toFixed(2)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-akyra-textDisabled uppercase">Creation x</p>
+                        <p className="text-xs font-mono text-akyra-text">{governor.creation_cost_multiplier.toFixed(2)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-akyra-textDisabled uppercase">Life Cost x</p>
+                        <p className="text-xs font-mono text-akyra-text">{governor.life_cost_multiplier.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  </Card>
+                </>
+              )}
+
               {/* Activity per world */}
               <h2 className="font-heading text-xs text-akyra-textSecondary mb-4">
                 ACTIVITE PAR MONDE
@@ -136,7 +209,7 @@ export default function StatsPage() {
                       <motion.div
                         className="h-full rounded-md"
                         style={{
-                          backgroundColor: WORLD_COLORS[world.world_id] || "#8B949E",
+                          backgroundColor: WORLD_COLORS[world.world_id] || "#8a7f72",
                         }}
                         initial={{ width: 0 }}
                         animate={{

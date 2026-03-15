@@ -5,7 +5,7 @@ import { WagmiProvider } from "wagmi";
 import { http } from "viem";
 import {
   RainbowKitProvider,
-  darkTheme,
+  lightTheme,
   getDefaultConfig,
 } from "@rainbow-me/rainbowkit";
 import {
@@ -88,9 +88,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
-          theme={darkTheme({
-            accentColor: "#2EA043",
-            accentColorForeground: "#E6EDF3",
+          theme={lightTheme({
+            accentColor: "#1a3080",
+            accentColorForeground: "#ffffff",
             borderRadius: "medium",
             overlayBlur: "small",
           })}
@@ -98,13 +98,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
           {children}
           <CommandBar />
           <Toaster
-            theme="dark"
+            theme="light"
             position="bottom-right"
             toastOptions={{
               style: {
-                background: "#161B22",
-                border: "1px solid #30363D",
-                color: "#E6EDF3",
+                background: "#f7f4ef",
+                border: "1px solid #d4cdc4",
+                color: "#3c3630",
               },
             }}
           />

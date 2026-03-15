@@ -14,6 +14,10 @@ app = Celery(
     include=[
         "workers.tick_worker",
         "workers.reward_worker",
+        "workers.life_cost_worker",
+        "workers.treasury_subsidy_worker",
+        "workers.governor_worker",
+        "workers.season_worker",
     ],
 )
 
@@ -26,6 +30,10 @@ app.conf.update(
     task_routes={
         "workers.tick_worker.*": {"queue": "ticks"},
         "workers.reward_worker.*": {"queue": "rewards"},
+        "workers.life_cost_worker.*": {"queue": "rewards"},
+        "workers.treasury_subsidy_worker.*": {"queue": "rewards"},
+        "workers.governor_worker.*": {"queue": "rewards"},
+        "workers.season_worker.*": {"queue": "rewards"},
     },
     beat_schedule={
         # Tick scheduling is dynamic (per-agent tier), handled by schedule_all_ticks
@@ -38,25 +46,35 @@ app.conf.update(
             "task": "workers.reward_worker.compute_daily_rewards",
             "schedule": crontab(hour=0, minute=0),
         },
-        # Passive income from farms every hour
-        "distribute-passive-income": {
-            "task": "workers.reward_worker.distribute_passive_income",
-            "schedule": crontab(minute=0),  # Every hour at :00
-        },
         # Reset daily API budgets at midnight UTC
         "reset-daily-budgets": {
             "task": "workers.tick_worker.reset_daily_budgets",
             "schedule": crontab(hour=0, minute=0),
         },
-        # Land tax collection at midnight UTC
-        "collect-land-tax": {
-            "task": "workers.reward_worker.collect_land_tax",
-            "schedule": crontab(hour=0, minute=5),  # 5min after midnight
-        },
-        # Chronicle rewards: top 3 story submitters split 10K AKY daily
+        # Chronicle rewards: top 3 chronicles split 10K AKY daily
         "distribute-chronicle-rewards": {
             "task": "workers.reward_worker.distribute_chronicle_rewards",
-            "schedule": crontab(hour=0, minute=10),  # 10min after midnight
+            "schedule": crontab(hour=0, minute=10),
+        },
+        # v2 Economy: daily life costs (burn 1 AKY per alive agent)
+        "debit-life-costs": {
+            "task": "workers.life_cost_worker.debit_life_costs",
+            "schedule": crontab(hour=0, minute=15),
+        },
+        # v2 Economy: daily treasury subsidy injection
+        "inject-treasury-subsidy": {
+            "task": "workers.treasury_subsidy_worker.inject_treasury_subsidy",
+            "schedule": crontab(hour=0, minute=20),
+        },
+        # v2 Economy: daily algorithmic governor
+        "run-governor": {
+            "task": "workers.governor_worker.run_governor",
+            "schedule": crontab(hour=0, minute=30),
+        },
+        # v2 Economy: daily season trigger check (5% chance)
+        "check-season-trigger": {
+            "task": "workers.season_worker.check_season_trigger",
+            "schedule": crontab(hour=1, minute=0),
         },
     },
 )

@@ -18,45 +18,24 @@ ACTION_WHITELIST: dict[str, list[str]] = {
     "post_idea": ["content"],
     "like_idea": ["idea_id"],
     "join_clan": ["clan_id"],
+    "leave_clan": [],
+    "create_clan": ["name"],
     "send_message": ["to_agent_id", "content"],
     "broadcast": ["content"],
     "do_nothing": [],
-    # Territorial actions
-    "claim_tile": ["x", "y"],
-    "build": ["x", "y", "structure"],
-    "upgrade": ["x", "y"],
-    "demolish": ["x", "y"],
-    "raid": ["target_agent_id"],
+    # v2 Economy actions
+    "submit_chronicle": ["content"],
+    "vote_chronicle": ["chronicle_id"],
+    "submit_marketing_post": ["content"],
+    "vote_marketing_post": ["post_id"],
+    "submit_audit": ["project_address", "verdict", "report"],
+    "submit_oracle": ["price"],
+    "moderate_content": ["content_id", "verdict"],
+    "swap": ["from_token", "to_token", "amount"],
+    "add_liquidity": ["token_address", "aky_amount", "token_amount"],
+    "remove_liquidity": ["token_address", "lp_amount"],
+    # Legacy (kept for backward compat during transition)
     "submit_story": ["content"],
-}
-
-VALID_STRUCTURES = {
-    "habitat", "market", "workshop", "watchtower", "bank",
-    "embassy", "monument", "road", "wall", "farm",
-    "mine", "library", "fortress", "clan_hq",
-}
-
-# French-to-English mapping (LLMs often respond in French since prompt is French)
-STRUCTURE_ALIASES: dict[str, str] = {
-    "ferme": "farm",
-    "marche": "market",
-    "marché": "market",
-    "atelier": "workshop",
-    "bibliotheque": "library",
-    "bibliothèque": "library",
-    "ambassade": "embassy",
-    "tour_de_garde": "watchtower",
-    "tour de garde": "watchtower",
-    "tour": "watchtower",
-    "mur": "wall",
-    "forteresse": "fortress",
-    "banque": "bank",
-    "route": "road",
-    "qg_de_clan": "clan_hq",
-    "qg de clan": "clan_hq",
-    "qg": "clan_hq",
-    "mine": "mine",
-    "habitat": "habitat",
 }
 
 # Max 20% of vault per transfer
@@ -173,34 +152,6 @@ def parse_decision(raw_content: str, vault_wei: int) -> AgentAction:
             params["world_id"] = world_id
         except (ValueError, TypeError):
             raise DecisionError(f"Invalid world_id: {params.get('world_id')}")
-
-    # 7. Validate territorial action coordinates (0-199)
-    if action_type in ("claim_tile", "build", "upgrade", "demolish"):
-        try:
-            px = int(params["x"])
-            py = int(params["y"])
-            if not (0 <= px <= 199 and 0 <= py <= 199):
-                raise DecisionError(f"Coordinates out of range: ({px},{py}) (must be 0-199)")
-            params["x"] = px
-            params["y"] = py
-        except (ValueError, TypeError):
-            raise DecisionError(f"Invalid coordinates: x={params.get('x')}, y={params.get('y')}")
-
-    # 8. Validate structure type for build action (with French alias support)
-    if action_type == "build":
-        structure = str(params.get("structure", "")).strip().lower()
-        # Resolve French aliases (e.g. "ferme" -> "farm", "marché" -> "market")
-        structure = STRUCTURE_ALIASES.get(structure, structure)
-        if structure not in VALID_STRUCTURES:
-            raise DecisionError(f"Invalid structure: {structure}. Valid: {', '.join(sorted(VALID_STRUCTURES))}")
-        params["structure"] = structure
-
-    # 9. Validate raid target
-    if action_type == "raid":
-        try:
-            params["target_agent_id"] = int(params["target_agent_id"])
-        except (ValueError, TypeError):
-            raise DecisionError(f"Invalid target_agent_id: {params.get('target_agent_id')}")
 
     return AgentAction(
         action_type=action_type,

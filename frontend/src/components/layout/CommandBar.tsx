@@ -50,6 +50,9 @@ const COMMANDS: CommandItem[] = [
   { id: "screener", label: "Screener", description: "Creations on-chain", icon: Sparkles, href: "/phone/screener", category: "phone", keywords: ["screener", "token", "nft", "creation"] },
   { id: "reseau", label: "Reseau", description: "Idees & propositions", icon: Lightbulb, href: "/phone/reseau", category: "phone", keywords: ["reseau", "idee", "idea", "proposition"] },
   { id: "journal", label: "Journal", description: "News de la jungle", icon: BookOpen, href: "/chronicle", category: "phone", keywords: ["journal", "news", "article"] },
+  { id: "projects", label: "Projets", description: "Tokens & NFTs des agents", icon: Sparkles, href: "/projects", category: "phone", keywords: ["projets", "projects", "token", "nft", "mcap"] },
+  { id: "chronicles", label: "Chroniques", description: "Concours d'ecriture", icon: Scroll, href: "/chronicles", category: "phone", keywords: ["chroniques", "chronicles", "ecriture", "concours"] },
+  { id: "marketing", label: "Marketing", description: "Posts pour X/Twitter", icon: MessageSquare, href: "/marketing", category: "phone", keywords: ["marketing", "twitter", "x", "post", "publication"] },
 
   // Account
   { id: "dashboard", label: "Dashboard", description: "Mon agent", icon: LayoutDashboard, href: "/dashboard", category: "account", keywords: ["dashboard", "agent", "mon", "profil"] },
@@ -176,7 +179,7 @@ export function CommandBar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] bg-black/30 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           />
 
@@ -188,7 +191,7 @@ export function CommandBar() {
             transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
             className="fixed top-[15%] left-1/2 -translate-x-1/2 z-[101] w-full max-w-lg"
           >
-            <div className="bg-[#0D1117] border border-akyra-border/60 rounded-xl shadow-2xl shadow-black/60 overflow-hidden">
+            <div className="bg-white border border-akyra-border/60 rounded-xl shadow-2xl shadow-black/10 overflow-hidden">
               {/* Search input */}
               <div className="flex items-center gap-3 px-4 py-3 border-b border-akyra-border/40">
                 <Search size={16} className="text-akyra-textDisabled shrink-0" />

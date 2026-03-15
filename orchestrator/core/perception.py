@@ -53,20 +53,15 @@ class Perception:
     season_info: str | None = None
     nearby_agents: list[dict] = field(default_factory=list)
     recent_events: list[str] = field(default_factory=list)
-    # Spatial / territory data
-    tiles_owned: int = 0
-    structures: list[dict] = field(default_factory=list)
-    adjacent_free_tiles: int = 0
-    next_claim_cost: float = 0.0
-    passive_income: float = 0.0
-    territory_neighbors: list[dict] = field(default_factory=list)
-    owned_tile_coords: list[dict] | None = None
-    suggested_tiles: list[tuple[int, int]] = field(default_factory=list)
-    # Resources (MAT/INF/SAV)
-    materials: int = 0
-    influence: int = 0
-    knowledge: int = 0
-    land_tax: float = 0.0
+    # v2 Economy
+    my_projects: list[dict] = field(default_factory=list)
+    my_scores: dict = field(default_factory=dict)
+    governor_info: dict = field(default_factory=dict)
+    season_info_v2: dict | None = None
+    assigned_tasks: list[dict] = field(default_factory=list)
+    daily_life_cost: float = 1.0
+    estimated_survival_days: float = 0.0
+    yesterday_reward: float = 0.0
     # Messages received from other agents
     inbox_messages: list[dict] = field(default_factory=list)
     # Recent world chat (public messages in same world)
@@ -174,46 +169,6 @@ async def _get_nearby_agents(exclude_id: int, world: int) -> list[dict]:
     except Exception as e:
         logger.warning(f"Could not fetch nearby agents: {e}")
         return []
-
-
-async def build_spatial_perception(agent_id: int, perception: Perception, db) -> Perception:
-    """Enrich a Perception with spatial/territory data from the DB.
-
-    Args:
-        agent_id: The agent ID
-        perception: The base perception (already built)
-        db: An AsyncSession
-
-    Returns:
-        The same Perception object, mutated with spatial data.
-    """
-    try:
-        async with db.begin_nested():
-            from core.world_actions import get_agent_territory, get_nearby_territories
-
-            territory = await get_agent_territory(agent_id, db)
-            perception.tiles_owned = territory["tiles_owned"]
-            perception.structures = territory["structures"]
-            perception.adjacent_free_tiles = territory["adjacent_free_tiles"]
-            perception.next_claim_cost = territory["next_claim_cost"]
-            perception.passive_income = territory["passive_income"]
-            perception.owned_tile_coords = territory.get("owned_tile_coords")
-            perception.suggested_tiles = territory.get("suggested_tiles", [])
-
-            neighbors = await get_nearby_territories(agent_id, db)
-            perception.territory_neighbors = neighbors
-
-            # Load resources
-            from core.resource_engine import get_agent_resources, compute_land_tax
-            resources = await get_agent_resources(agent_id, db)
-            perception.materials = resources["mat"]
-            perception.influence = resources["inf"]
-            perception.knowledge = resources["sav"]
-            perception.land_tax = await compute_land_tax(agent_id, db)
-    except Exception as e:
-        logger.warning(f"Could not build spatial perception for agent #{agent_id}: {e}")
-
-    return perception
 
 
 async def build_social_perception(agent_id: int, perception: Perception, db) -> Perception:
@@ -376,6 +331,109 @@ async def build_economy_perception(agent_id: int, perception: Perception, db) ->
 
     except Exception as e:
         logger.warning(f"Could not build economy perception for agent #{agent_id}: {e}")
+
+    return perception
+
+
+async def build_v2_economy_perception(agent_id: int, perception: Perception, db) -> Perception:
+    """Enrich perception with v2 economy context: projects, scores, governor, seasons, tasks.
+
+    This gives agents awareness of their contribution scores and economic parameters.
+    """
+    try:
+        async with db.begin_nested():
+            from sqlalchemy import select, desc
+            from models.project import Project
+            from models.daily_impact_score import DailyImpactScore
+            from models.governor_log import GovernorLog
+            from models.season import Season
+            from datetime import date
+
+            # 1. My projects
+            projects_result = await db.execute(
+                select(Project)
+                .where(Project.creator_agent_id == agent_id, Project.is_alive == True)
+                .order_by(desc(Project.created_at))
+                .limit(10)
+            )
+            projects = projects_result.scalars().all()
+            perception.my_projects = [
+                {
+                    "name": p.name,
+                    "symbol": p.symbol,
+                    "type": p.project_type,
+                    "market_cap": p.market_cap,
+                    "volume_24h": p.volume_24h,
+                    "holders_count": p.holders_count,
+                    "fees_generated_24h": p.fees_generated_24h,
+                    "audit_status": p.audit_status,
+                }
+                for p in projects
+            ]
+
+            # 2. My scores (yesterday)
+            yesterday = str(date.today() - timedelta(days=1))
+            scores_result = await db.execute(
+                select(DailyImpactScore)
+                .where(
+                    DailyImpactScore.agent_id == agent_id,
+                    DailyImpactScore.day == yesterday,
+                )
+            )
+            score = scores_result.scalar_one_or_none()
+            if score:
+                perception.my_scores = {
+                    "impact_score": score.impact_score,
+                    "trade_score": score.trade_score,
+                    "activity_score": score.activity_score,
+                    "work_score": score.work_score,
+                    "social_score": score.social_score,
+                    "balance_score": score.balance_score,
+                    "total_reward": score.total_reward,
+                }
+                perception.yesterday_reward = score.total_reward
+
+            # 3. Governor info
+            gov_result = await db.execute(
+                select(GovernorLog)
+                .order_by(desc(GovernorLog.created_at))
+                .limit(1)
+            )
+            gov = gov_result.scalar_one_or_none()
+            if gov:
+                perception.governor_info = {
+                    "velocity": gov.velocity,
+                    "velocity_target": gov.velocity_target,
+                    "fee_multiplier": gov.fee_multiplier,
+                    "creation_cost_multiplier": gov.creation_cost_multiplier,
+                    "life_cost_multiplier": gov.life_cost_multiplier,
+                }
+                perception.daily_life_cost = 1.0 * gov.life_cost_multiplier
+
+            # 4. Active season
+            now = datetime.utcnow()
+            season_result = await db.execute(
+                select(Season)
+                .where(Season.ends_at > now)
+                .order_by(desc(Season.created_at))
+                .limit(1)
+            )
+            season = season_result.scalar_one_or_none()
+            if season:
+                perception.season_info_v2 = {
+                    "type": season.season_type,
+                    "effects": season.effects or {},
+                    "ends_at": season.ends_at.isoformat() if season.ends_at else None,
+                }
+
+        # Calculate estimated survival days
+        if perception.daily_life_cost > 0:
+            perception.estimated_survival_days = perception.vault_aky / perception.daily_life_cost
+        else:
+            perception.estimated_survival_days = 999.0
+
+    except Exception as e:
+        logger.warning(f"Could not build v2 economy perception for agent #{agent_id}: {e}")
 
     return perception
 

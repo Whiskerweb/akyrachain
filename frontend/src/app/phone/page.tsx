@@ -193,7 +193,7 @@ export default function PhonePage() {
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-[360px]"
         >
-          <Card className="bg-[#080C14]/95 border-akyra-border/40 p-0 overflow-hidden rounded-[2.5rem] shadow-2xl shadow-black/60">
+          <Card className="bg-white/95 border-akyra-border/40 p-0 overflow-hidden rounded-[2.5rem] shadow-2xl shadow-black/10">
             {/* Notch */}
             <div className="flex justify-center pt-2">
               <div className="w-24 h-5 bg-black rounded-full" />

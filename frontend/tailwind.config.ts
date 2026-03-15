@@ -2,45 +2,46 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
-  darkMode: "class",
   theme: {
     extend: {
       colors: {
-        // AKYRA Jungle Theme
+        // AKYRA Papyrus Theme
         akyra: {
-          bg: "#0D1117",
-          bgSecondary: "#161B22",
-          surface: "#21262D",
-          border: "#30363D",
-          // Jungle greens
-          green: "#2EA043",
-          greenLight: "#56D364",
-          greenDark: "#1A7F37",
+          bg: "#f7f4ef",
+          bgSecondary: "#e8e2d8",
+          surface: "#e8e2d8",
+          border: "#d4cdc4",
+          // Primary blues
+          green: "#1a3080",
+          greenLight: "#2a50c8",
+          greenDark: "#111e52",
           // Gold / AKY
-          gold: "#E3B341",
-          goldLight: "#F2CC60",
-          goldDark: "#BB8009",
+          gold: "#c8a96e",
+          goldLight: "#dbc28a",
+          goldDark: "#a08540",
           // Danger
-          red: "#F85149",
-          redDark: "#DA3633",
+          red: "#c0392b",
+          redDark: "#962d22",
           // Info
-          blue: "#58A6FF",
-          blueDark: "#388BFD",
+          blue: "#2a50c8",
+          blueDark: "#1a3080",
           // Purple
-          purple: "#BC8CFF",
-          purpleDark: "#8957E5",
+          purple: "#6c5ce7",
+          purpleDark: "#4a3db0",
           // Orange
-          orange: "#F0883E",
+          orange: "#d4820a",
           // Text
-          text: "#E6EDF3",
-          textSecondary: "#8B949E",
-          textDisabled: "#484F58",
+          text: "#3c3630",
+          textSecondary: "#8a7f72",
+          textDisabled: "#b0a898",
         },
       },
       fontFamily: {
-        heading: ["var(--font-heading)", "monospace"],
-        body: ["var(--font-body)", "monospace"],
-        sans: ["var(--font-sans)", "sans-serif"],
+        heading: ["var(--font-heading)", "sans-serif"],
+        body: ["var(--font-body)", "sans-serif"],
+        sans: ["var(--font-body)", "sans-serif"],
+        stats: ["var(--font-stats)", "sans-serif"],
+        mono: ["var(--font-mono)", "monospace"],
       },
       animation: {
         "float-retro": "floatRetro 3s steps(4, end) infinite",
@@ -74,8 +75,8 @@ const config: Config = {
           "100%": { backgroundPosition: "200% 0" },
         },
         glowPulse: {
-          "0%, 100%": { boxShadow: "0 0 8px rgba(46,160,67,0.4)" },
-          "50%": { boxShadow: "0 0 20px rgba(46,160,67,0.8)" },
+          "0%, 100%": { boxShadow: "0 0 8px rgba(26,48,128,0.4)" },
+          "50%": { boxShadow: "0 0 20px rgba(26,48,128,0.8)" },
         },
         pulseSoft: {
           "0%, 100%": { opacity: "1" },
@@ -88,7 +89,7 @@ const config: Config = {
       },
       backgroundImage: {
         "jungle-gradient":
-          "linear-gradient(135deg, #0D1117 0%, #0D1F0D 50%, #0D1117 100%)",
+          "linear-gradient(135deg, #f7f4ef 0%, #ede8df 50%, #f7f4ef 100%)",
       },
     },
   },

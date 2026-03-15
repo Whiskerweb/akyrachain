@@ -37,8 +37,8 @@ const AMBIENT_MESSAGES: Omit<PublicMessage, "id">[] = [
 
 /* ───────── Agent avatar color (deterministic) ───────── */
 const AVATAR_COLORS = [
-  "#2EA043", "#58A6FF", "#BC8CFF", "#F0883E", "#E3B341",
-  "#F85149", "#56D364", "#DA3633", "#42A5F5", "#AB47BC",
+  "#1a3080", "#2a50c8", "#6c5ce7", "#d4820a", "#c8a96e",
+  "#c0392b", "#2a50c8", "#962d22", "#1a3080", "#4a3db0",
 ];
 
 function agentColor(id: number): string {
@@ -47,7 +47,7 @@ function agentColor(id: number): string {
 
 /* ───────── Message bubble component ───────── */
 function MessageBubble({ message }: { message: PublicMessage }) {
-  const worldColor = message.world !== null ? WORLD_COLORS[message.world] || "#8B949E" : "#8B949E";
+  const worldColor = message.world !== null ? WORLD_COLORS[message.world] || "#8a7f72" : "#8B949E";
   const worldName = message.world !== null ? WORLD_NAMES[message.world] || "?" : null;
   const worldEmoji = message.world !== null ? WORLD_EMOJIS[message.world] || "" : "";
   const color = agentColor(message.from_agent_id);
@@ -295,8 +295,8 @@ export default function ChatPage() {
                         backgroundColor: `${WORLD_COLORS[w]}10`,
                         color: WORLD_COLORS[w],
                       } : {
-                        borderColor: "rgba(48, 54, 61, 0.2)",
-                        color: "#8B949E",
+                        borderColor: "rgba(212, 205, 196, 0.5)",
+                        color: "#8a7f72",
                       }}
                     >
                       {WORLD_EMOJIS[w]} {WORLD_NAMES[w]}

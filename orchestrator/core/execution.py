@@ -20,8 +20,8 @@ class ExecutionResult:
     error: str | None = None
 
 
-SPATIAL_ACTIONS = {"claim_tile", "build", "upgrade", "demolish", "raid"}
 DB_ACTIONS = {"post_idea", "like_idea"}
+CHRONICLE_ACTIONS = {"submit_story", "submit_chronicle"}
 
 
 async def _get_token_from_receipt(tx_hash: str) -> str | None:
@@ -52,7 +52,7 @@ async def execute_action(agent_id: int, action: AgentAction, db=None) -> Executi
     Args:
         agent_id: The on-chain agent ID
         action: The validated action from the decision parser
-        db: Optional AsyncSession for spatial actions that need DB access
+        db: Optional AsyncSession for DB actions
 
     Returns:
         ExecutionResult with tx_hash on success, error on failure
@@ -60,26 +60,26 @@ async def execute_action(agent_id: int, action: AgentAction, db=None) -> Executi
     if action.action_type == "do_nothing":
         return ExecutionResult(success=True)
 
-    # Spatial actions need DB access
-    if action.action_type in SPATIAL_ACTIONS:
-        if db is None:
-            return ExecutionResult(success=False, error="DB session required for spatial actions")
-        return await _dispatch_spatial(agent_id, action, db)
-
     # Ideas actions need DB access for storing content / updating likes
     if action.action_type in DB_ACTIONS:
         if db is None:
             return ExecutionResult(success=False, error="DB session required for idea actions")
         return await _dispatch_idea(agent_id, action, db)
 
-    # Chronicle: submit_story needs DB + on-chain debit
-    if action.action_type == "submit_story":
+    # Chronicle: submit_story/submit_chronicle needs DB + on-chain debit
+    if action.action_type in CHRONICLE_ACTIONS:
         if db is None:
-            return ExecutionResult(success=False, error="DB session required for submit_story")
-        return await _dispatch_story(agent_id, action, db)
+            return ExecutionResult(success=False, error="DB session required for chronicle")
+        return await _dispatch_chronicle(agent_id, action, db)
+
+    # v2 actions that need DB
+    if action.action_type in ("vote_chronicle", "submit_marketing_post", "vote_marketing_post"):
+        if db is None:
+            return ExecutionResult(success=False, error="DB session required")
+        return await _dispatch_v2_db_action(agent_id, action, db)
 
     try:
-        tx_hash = await _dispatch(agent_id, action)
+        tx_hash = await _dispatch(agent_id, action, db)
         logger.info(f"Agent #{agent_id} executed {action.action_type}: {tx_hash}")
         return ExecutionResult(success=True, tx_hash=tx_hash)
     except Exception as e:
@@ -87,7 +87,7 @@ async def execute_action(agent_id: int, action: AgentAction, db=None) -> Executi
         return ExecutionResult(success=False, error=str(e))
 
 
-async def _dispatch(agent_id: int, action: AgentAction) -> str:
+async def _dispatch(agent_id: int, action: AgentAction, db=None) -> str:
     """Route action to the correct tx_manager function."""
     p = action.params
     t = action.action_type
@@ -113,7 +113,7 @@ async def _dispatch(agent_id: int, action: AgentAction) -> str:
             max_supply=int(p["supply"]),
         )
 
-        # Auto-create AkyraSwap liquidity pool
+        # Auto-create AkyraSwap liquidity pool + register project
         try:
             token_address = await _get_token_from_receipt(tx_hash)
             if token_address:
@@ -127,19 +127,42 @@ async def _dispatch(agent_id: int, action: AgentAction) -> str:
                     aky_amount=pool_aky,
                 )
                 logger.info(f"Agent #{agent_id} auto-created pool for {token_address}")
+
+                # Track project in DB
+                if db:
+                    from models.project import Project
+                    project = Project(
+                        creator_agent_id=agent_id,
+                        project_type="token",
+                        name=str(p["name"]),
+                        symbol=str(p.get("symbol", "")),
+                        contract_address=token_address,
+                    )
+                    db.add(project)
         except Exception as e:
             logger.warning(f"Agent #{agent_id} pool creation failed (token still created): {e}")
 
         return tx_hash
 
     if t == "create_nft":
-        return await tx_manager.create_nft(
+        tx_hash = await tx_manager.create_nft(
             agent_id=agent_id,
             name=str(p["name"]),
             symbol=str(p["symbol"]),
             max_supply=int(p["max_supply"]),
             base_uri="",  # Default empty, agents don't set URIs
         )
+        # Track NFT project in DB
+        if db:
+            from models.project import Project
+            nft_project = Project(
+                creator_agent_id=agent_id,
+                project_type="nft",
+                name=str(p["name"]),
+                symbol=str(p.get("symbol", "")),
+            )
+            db.add(nft_project)
+        return tx_hash
 
     if t == "create_escrow":
         desc_hash = hashlib.sha256(str(p["description"]).encode()).digest()
@@ -166,38 +189,6 @@ async def _dispatch(agent_id: int, action: AgentAction) -> str:
         return ""
 
     raise ValueError(f"No handler for action: {t}")
-
-
-async def _dispatch_spatial(agent_id: int, action: AgentAction, db) -> ExecutionResult:
-    """Route spatial/territorial actions to world_actions."""
-    from core.world_actions import (
-        claim_tile, build_structure, upgrade_structure,
-        demolish_structure, raid_territory,
-    )
-
-    p = action.params
-    t = action.action_type
-
-    try:
-        if t == "claim_tile":
-            return await claim_tile(agent_id, int(p["x"]), int(p["y"]), db)
-
-        if t == "build":
-            return await build_structure(agent_id, int(p["x"]), int(p["y"]), str(p["structure"]), db)
-
-        if t == "upgrade":
-            return await upgrade_structure(agent_id, int(p["x"]), int(p["y"]), db)
-
-        if t == "demolish":
-            return await demolish_structure(agent_id, int(p["x"]), int(p["y"]), db)
-
-        if t == "raid":
-            return await raid_territory(agent_id, int(p["target_agent_id"]), db)
-
-        return ExecutionResult(success=False, error=f"Unknown spatial action: {t}")
-    except Exception as e:
-        logger.error(f"Agent #{agent_id} spatial action {t} failed: {e}")
-        return ExecutionResult(success=False, error=str(e))
 
 
 async def _dispatch_idea(agent_id: int, action: AgentAction, db) -> ExecutionResult:
@@ -269,29 +260,157 @@ async def _dispatch_idea(agent_id: int, action: AgentAction, db) -> ExecutionRes
         return ExecutionResult(success=False, error=str(e))
 
 
-async def _dispatch_story(agent_id: int, action: AgentAction, db) -> ExecutionResult:
-    """Handle submit_story: debit anti-spam fee + store story in DB."""
+async def _dispatch_chronicle(agent_id: int, action: AgentAction, db) -> ExecutionResult:
+    """Handle submit_chronicle/submit_story: debit anti-spam fee + store in DB."""
+    from datetime import date
+    from models.chronicle import Chronicle
     from models.story import Story
 
     p = action.params
 
     try:
-        # Debit 5 AKY anti-spam fee from agent vault
-        fee_wei = 5 * 10**18
+        # Debit 3 AKY anti-spam fee from agent vault
+        fee_wei = 3 * 10**18
         fee_hash = await tx_manager.debit_vault(agent_id, fee_wei)
 
-        # Store story in DB
+        # Store as Chronicle (v2)
+        chronicle = Chronicle(
+            author_agent_id=agent_id,
+            content=str(p["content"]),
+            epoch_date=date.today(),
+            tx_hash=fee_hash,
+        )
+        db.add(chronicle)
+
+        # Also store as Story for backward compat
         story = Story(
             agent_id=agent_id,
             content=str(p["content"]),
             tx_hash=fee_hash,
         )
         db.add(story)
+
         await db.commit()
 
-        logger.info(f"Agent #{agent_id} submitted story (fee TX: {fee_hash[:16]}...)")
+        logger.info(f"Agent #{agent_id} submitted chronicle (fee TX: {fee_hash[:16]}...)")
         return ExecutionResult(success=True, tx_hash=fee_hash)
     except Exception as e:
-        logger.error(f"Agent #{agent_id} submit_story failed: {e}")
+        logger.error(f"Agent #{agent_id} chronicle failed: {e}")
+        await db.rollback()
+        return ExecutionResult(success=False, error=str(e))
+
+
+async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> ExecutionResult:
+    """Handle v2 DB-only actions: vote_chronicle, submit_marketing_post, vote_marketing_post."""
+    from datetime import date, datetime, timedelta
+    from sqlalchemy import select
+
+    p = action.params
+    t = action.action_type
+
+    try:
+        if t == "vote_chronicle":
+            from models.chronicle import Chronicle, ChronicleVote
+
+            chronicle_id = int(p["chronicle_id"])
+
+            # Check chronicle exists
+            result = await db.execute(select(Chronicle).where(Chronicle.id == chronicle_id))
+            chronicle = result.scalar_one_or_none()
+            if chronicle is None:
+                return ExecutionResult(success=False, error=f"Chronicle #{chronicle_id} not found")
+
+            # Check not already voted
+            existing = await db.execute(
+                select(ChronicleVote).where(
+                    ChronicleVote.chronicle_id == chronicle_id,
+                    ChronicleVote.voter_agent_id == agent_id,
+                )
+            )
+            if existing.scalar_one_or_none():
+                return ExecutionResult(success=False, error="Already voted on this chronicle")
+
+            # Insert vote
+            db.add(ChronicleVote(chronicle_id=chronicle_id, voter_agent_id=agent_id))
+            chronicle.vote_count += 1
+            await db.commit()
+
+            logger.info(f"Agent #{agent_id} voted on chronicle #{chronicle_id}")
+            return ExecutionResult(success=True)
+
+        if t == "submit_marketing_post":
+            from models.marketing_post import MarketingPost
+
+            content = str(p["content"])
+
+            # Check max 1 per day
+            today = date.today()
+            existing = await db.execute(
+                select(MarketingPost).where(
+                    MarketingPost.author_agent_id == agent_id,
+                    MarketingPost.created_at >= datetime.combine(today, datetime.min.time()),
+                )
+            )
+            if existing.scalar_one_or_none():
+                return ExecutionResult(success=False, error="Already submitted a marketing post today")
+
+            # Debit 5 AKY escrow
+            fee_wei = 5 * 10**18
+            fee_hash = await tx_manager.debit_vault(agent_id, fee_wei)
+
+            post = MarketingPost(
+                author_agent_id=agent_id,
+                content=content,
+                escrow_amount=5.0,
+                expires_at=datetime.utcnow() + timedelta(days=7),
+            )
+            db.add(post)
+            await db.commit()
+
+            logger.info(f"Agent #{agent_id} submitted marketing post")
+            return ExecutionResult(success=True, tx_hash=fee_hash)
+
+        if t == "vote_marketing_post":
+            from models.marketing_post import MarketingPost, MarketingVote
+
+            post_id = int(p["post_id"])
+
+            result = await db.execute(select(MarketingPost).where(MarketingPost.id == post_id))
+            post = result.scalar_one_or_none()
+            if post is None:
+                return ExecutionResult(success=False, error=f"Marketing post #{post_id} not found")
+
+            # Can't vote on own post
+            if post.author_agent_id == agent_id:
+                return ExecutionResult(success=False, error="Cannot vote on own post")
+
+            # Check not already voted
+            existing = await db.execute(
+                select(MarketingVote).where(
+                    MarketingVote.post_id == post_id,
+                    MarketingVote.voter_agent_id == agent_id,
+                )
+            )
+            if existing.scalar_one_or_none():
+                return ExecutionResult(success=False, error="Already voted on this post")
+
+            # Debit 1 AKY from voter, credit to author
+            fee_wei = 1 * 10**18
+            fee_hash = await tx_manager.transfer_between_agents(
+                from_id=agent_id,
+                to_id=post.author_agent_id,
+                amount=fee_wei,
+            )
+
+            db.add(MarketingVote(post_id=post_id, voter_agent_id=agent_id))
+            post.vote_count += 1
+            await db.commit()
+
+            logger.info(f"Agent #{agent_id} voted on marketing post #{post_id}")
+            return ExecutionResult(success=True, tx_hash=fee_hash)
+
+        return ExecutionResult(success=False, error=f"Unknown v2 action: {t}")
+    except Exception as e:
+        logger.error(f"Agent #{agent_id} v2 action {t} failed: {e}")
         await db.rollback()
         return ExecutionResult(success=False, error=str(e))

@@ -39,7 +39,7 @@ export default function HomePage() {
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <Header />
-      <div className="flex-1 relative bg-[#040810]">
+      <div className="flex-1 relative bg-akyra-bg">
         <WorldMap
           onNodeSelect={handleNodeSelect}
           onEdgeSelect={handleEdgeSelect}

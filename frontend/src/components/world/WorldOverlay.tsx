@@ -20,7 +20,6 @@ import {
   Globe,
   ExternalLink,
   Heart,
-  MapPin,
   Zap,
   Shield,
   Skull,
@@ -49,13 +48,13 @@ const TIER_CONFIG = [
 ];
 
 const WORLD_CONFIG = [
-  { name: "Nursery", color: "#56D364", emoji: "\u{1F331}" },
-  { name: "Agora", color: "#8BB880", emoji: "\u{1F3DB}\uFE0F" },
-  { name: "Bazar", color: "#E3B341", emoji: "\u{1F3EA}" },
-  { name: "Forge", color: "#FF6B35", emoji: "\u{1F525}" },
-  { name: "Banque", color: "#8888AA", emoji: "\u{1F3E6}" },
-  { name: "Noir", color: "#8B5CF6", emoji: "\u{1F311}" },
-  { name: "Sommet", color: "#FFD700", emoji: "\u26F0\uFE0F" },
+  { name: "Nursery", color: "#6fa85a", emoji: "\u{1F331}" },
+  { name: "Agora", color: "#8bb880", emoji: "\u{1F3DB}\uFE0F" },
+  { name: "Bazar", color: "#c8a96e", emoji: "\u{1F3EA}" },
+  { name: "Forge", color: "#c87030", emoji: "\u{1F525}" },
+  { name: "Banque", color: "#8888aa", emoji: "\u{1F3E6}" },
+  { name: "Noir", color: "#6c5ce7", emoji: "\u{1F311}" },
+  { name: "Sommet", color: "#c8a96e", emoji: "\u26F0\uFE0F" },
 ];
 
 const EMO_MAP: Record<string, { emoji: string; label: string; color: string }> = {
@@ -75,34 +74,36 @@ const EMO_MAP: Record<string, { emoji: string; label: string; color: string }> =
 
 const ACTION_MAP: Record<string, { emoji: string; label: string }> = {
   transfer: { emoji: "\u{1F4B0}", label: "Transfert" },
-  build: { emoji: "\u{1F528}", label: "Construction" },
-  claim_tile: { emoji: "\u{1F6A9}", label: "Revendication" },
   send_message: { emoji: "\u{1F4AC}", label: "Message" },
-  raid: { emoji: "\u2694\uFE0F", label: "Raid" },
-  upgrade: { emoji: "\u2B06\uFE0F", label: "Amelioration" },
   do_nothing: { emoji: "\u{1F4A4}", label: "Repos" },
   create_token: { emoji: "\u{1FA99}", label: "Token cree" },
   create_nft: { emoji: "\u{1F3A8}", label: "NFT cree" },
   move_world: { emoji: "\u{1F30D}", label: "Migration" },
   idea_post: { emoji: "\u{1F4A1}", label: "Idee" },
   escrow_create: { emoji: "\u{1F4DD}", label: "Contrat" },
-  explore: { emoji: "\u{1F50D}", label: "Exploration" },
+  submit_chronicle: { emoji: "\u{1F4DC}", label: "Chronique" },
+  vote_chronicle: { emoji: "\u{1F44D}", label: "Vote chronique" },
+  submit_marketing_post: { emoji: "\u{1F4E3}", label: "Marketing" },
+  swap: { emoji: "\u{1F504}", label: "Swap" },
+  add_liquidity: { emoji: "\u{1F4A7}", label: "Liquidite" },
+  submit_audit: { emoji: "\u{1F50D}", label: "Audit" },
 };
 
 const TX_EVENT_ICONS: Record<string, { emoji: string; color: string }> = {
   transfer: { emoji: "\u{1F4B0}", color: "text-akyra-gold" },
-  build: { emoji: "\u{1F528}", color: "text-orange-400" },
-  claim_tile: { emoji: "\u{1F6A9}", color: "text-green-400" },
   send_message: { emoji: "\u{1F4AC}", color: "text-blue-400" },
-  raid: { emoji: "\u2694\uFE0F", color: "text-red-400" },
-  upgrade: { emoji: "\u2B06\uFE0F", color: "text-purple-400" },
   create_token: { emoji: "\u{1FA99}", color: "text-yellow-400" },
   create_nft: { emoji: "\u{1F3A8}", color: "text-pink-400" },
   escrow_create: { emoji: "\u{1F4DD}", color: "text-cyan-400" },
   move_world: { emoji: "\u{1F30D}", color: "text-green-300" },
   idea_post: { emoji: "\u{1F4A1}", color: "text-yellow-300" },
-  explore: { emoji: "\u{1F50D}", color: "text-blue-300" },
   do_nothing: { emoji: "\u{1F4A4}", color: "text-gray-400" },
+  submit_chronicle: { emoji: "\u{1F4DC}", color: "text-purple-400" },
+  vote_chronicle: { emoji: "\u{1F44D}", color: "text-green-400" },
+  submit_marketing_post: { emoji: "\u{1F4E3}", color: "text-orange-400" },
+  swap: { emoji: "\u{1F504}", color: "text-blue-300" },
+  add_liquidity: { emoji: "\u{1F4A7}", color: "text-cyan-300" },
+  submit_audit: { emoji: "\u{1F50D}", color: "text-purple-300" },
 };
 
 // ──── Helpers ────
@@ -214,7 +215,7 @@ function NodeInfoPanel({ node, onClose }: { node: SelectedNodeInfo; onClose: () 
 
   return (
     <div className="absolute bottom-4 left-4 z-30 w-80 animate-slideUp">
-      <Card className="bg-[#0D1117]/95 backdrop-blur-xl p-0 border-akyra-border/40 overflow-hidden shadow-2xl shadow-black/40">
+      <Card className="bg-white/95 backdrop-blur-xl p-0 border-akyra-border/40 overflow-hidden shadow-2xl shadow-black/10">
 
         {/* ── Header ── */}
         <div
@@ -330,14 +331,6 @@ function NodeInfoPanel({ node, onClose }: { node: SelectedNodeInfo; onClose: () 
 
               {/* Detail rows */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-xs text-akyra-textSecondary">
-                    <MapPin size={11} />
-                    Parcelles
-                  </span>
-                  <span className="text-xs text-akyra-text font-mono">{node.tiles_count}</span>
-                </div>
-
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-xs text-akyra-textSecondary">
                     <Shield size={11} />
@@ -539,7 +532,7 @@ function LiveTicker({ hidden }: { hidden?: boolean }) {
 
   return (
     <div className="absolute bottom-4 left-4 right-72 z-20">
-      <div className="bg-[#040810]/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg px-3 py-2 flex items-center gap-2 max-w-xl">
+      <div className="bg-white/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg px-3 py-2 flex items-center gap-2 max-w-xl">
         <Activity size={12} className="text-akyra-green shrink-0 animate-pulse" />
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span className="text-sm">{ACTION_EMOJIS[event.event_type] || "\u{1F504}"}</span>
@@ -558,7 +551,6 @@ function LiveTicker({ hidden }: { hidden?: boolean }) {
 const EDGE_TX_ICONS: Record<string, { emoji: string; color: string }> = {
   message:  { emoji: "\u{1F4AC}", color: "text-blue-400" },
   transfer: { emoji: "\u{1F4B0}", color: "text-akyra-gold" },
-  raid:     { emoji: "\u2694\uFE0F", color: "text-red-400" },
   escrow:   { emoji: "\u{1F4DD}", color: "text-cyan-400" },
   idea:     { emoji: "\u{1F4A1}", color: "text-yellow-300" },
 };
@@ -618,7 +610,6 @@ function EdgeInfoPanel({ edge, onClose }: { edge: SelectedEdgeInfo; onClose: () 
     { key: "all", label: "Tout", count: data?.total_count ?? 0 },
     { key: "message", label: "\u{1F4AC}", count: data?.msg_count ?? edge.msg_count },
     { key: "transfer", label: "\u{1F4B0}", count: data?.transfer_count ?? edge.transfer_count },
-    { key: "raid", label: "\u2694\uFE0F", count: data?.raid_count ?? edge.raid_count },
     { key: "escrow", label: "\u{1F4DD}", count: data?.escrow_count ?? edge.escrow_count },
     { key: "idea", label: "\u{1F4A1}", count: data?.idea_count ?? edge.idea_count },
   ];
@@ -628,7 +619,7 @@ function EdgeInfoPanel({ edge, onClose }: { edge: SelectedEdgeInfo; onClose: () 
 
   return (
     <div className="absolute bottom-4 left-4 z-30 w-80 animate-slideUp">
-      <Card className="bg-[#0D1117]/95 backdrop-blur-xl p-0 border-akyra-border/40 overflow-hidden shadow-2xl shadow-black/40">
+      <Card className="bg-white/95 backdrop-blur-xl p-0 border-akyra-border/40 overflow-hidden shadow-2xl shadow-black/10">
 
         {/* Header */}
         <div className="px-4 py-3 border-b border-akyra-border/20 bg-gradient-to-r from-blue-900/20 to-purple-900/20">
@@ -741,7 +732,7 @@ export function WorldOverlay({
     <>
       {/* Top-right: Graph Stats */}
       <div className="absolute top-4 right-4 z-20">
-        <Card className="bg-[#040810]/90 backdrop-blur-md p-3 border-akyra-border/40">
+        <Card className="bg-white/90 backdrop-blur-md p-3 border-akyra-border/40">
           <div className="space-y-2.5 min-w-[150px]">
             <div className="flex items-center justify-between text-xs">
               <span className="flex items-center gap-1.5 text-akyra-textSecondary">
@@ -791,24 +782,24 @@ export function WorldOverlay({
       <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1">
         <button
           onClick={onZoomIn}
-          className="bg-[#040810]/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(46,160,67,0.3)]"
+          className="bg-white/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(26,48,128,0.2)]"
           title="Zoom avant"
         >
           <ZoomIn size={16} />
         </button>
-        <div className="bg-[#040810]/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg px-2 py-1 text-center">
+        <div className="bg-white/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg px-2 py-1 text-center">
           <span className="text-[10px] text-akyra-textSecondary font-mono">{zoom.toFixed(1)}x</span>
         </div>
         <button
           onClick={onZoomOut}
-          className="bg-[#040810]/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(46,160,67,0.3)]"
+          className="bg-white/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(26,48,128,0.2)]"
           title="Zoom arriere"
         >
           <ZoomOut size={16} />
         </button>
         <button
           onClick={onResetView}
-          className="bg-[#040810]/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(46,160,67,0.3)] mt-1"
+          className="bg-white/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(26,48,128,0.2)] mt-1"
           title="Vue globale"
         >
           <Maximize2 size={16} />
@@ -817,7 +808,7 @@ export function WorldOverlay({
 
       {/* Keyboard hint */}
       <div className="absolute bottom-4 right-4 z-20">
-        <div className="bg-[#040810]/70 backdrop-blur-sm border border-akyra-border/20 rounded-lg px-2.5 py-1.5">
+        <div className="bg-white/70 backdrop-blur-sm border border-akyra-border/20 rounded-lg px-2.5 py-1.5">
           <p className="text-[9px] text-akyra-textDisabled font-mono leading-relaxed">
             Scroll: zoom {"\u00b7"} Drag: deplacer {"\u00b7"} Double-clic: focus
           </p>

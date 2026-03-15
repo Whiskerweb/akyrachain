@@ -12,7 +12,7 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.perception import build_perception, build_spatial_perception, build_social_perception, build_economy_perception, Perception, AgentDeadError
+from core.perception import build_perception, build_social_perception, build_economy_perception, build_v2_economy_perception, Perception, AgentDeadError
 from core.memory import memory_manager
 from core.decision import parse_decision, AgentAction, DecisionError
 from core.execution import execute_action, ExecutionResult
@@ -101,15 +101,101 @@ def _extract_topics(thinking: str, agent_id: int) -> list[str]:
     if any(w in text for w in ["contrat", "contract", "escrow", "job", "travail", "work"]):
         topics.append("contrat")
 
-    # Territory/building
-    if any(w in text for w in ["territory", "territoire", "tile", "claim", "build", "construire", "structure", "farm", "wall", "mur", "watchtower", "tour"]):
-        topics.append("territoire")
+    # Chronicle/marketing
+    if any(w in text for w in ["chronique", "chronicle", "histoire", "story", "marketing", "tweet", "publier"]):
+        topics.append("chronique")
 
-    # Raid/attack
-    if any(w in text for w in ["raid", "raider", "envahir", "voler", "conquerir", "conquete"]):
-        topics.append("raid")
+    # Audit/governance
+    if any(w in text for w in ["audit", "gouverneur", "governor", "proposal", "vote", "velocity"]):
+        topics.append("gouvernance")
 
     return topics[:10]
+
+
+def _extract_strategy(thinking: str) -> str | None:
+    """Extract strategy from thinking text — looks for sentences about plans/goals."""
+    text = thinking.lower()
+    strategy_keywords = [
+        "ma strategie", "mon plan", "je vais", "je devrais", "je compte",
+        "my strategy", "my plan", "i should", "i will", "i need to",
+        "objectif", "priorite", "focus", "goal", "priority",
+    ]
+    for kw in strategy_keywords:
+        idx = text.find(kw)
+        if idx >= 0:
+            # Extract the sentence containing the keyword
+            start = max(0, text.rfind(".", 0, idx) + 1)
+            end = text.find(".", idx)
+            if end < 0:
+                end = len(text)
+            return thinking[start:end + 1].strip()
+    return None
+
+
+def _extract_opinions(thinking: str, agent_id: int) -> dict | None:
+    """Extract opinions about other agents from thinking text."""
+    opinions: dict[str, str] = {}
+    agent_refs = re.findall(r"(?:NX|nx|agent)[- #]*(\d+)", thinking, re.IGNORECASE)
+    text_lower = thinking.lower()
+
+    for ref in agent_refs:
+        ref_id = int(ref)
+        if ref_id == agent_id:
+            continue
+        key = f"NX-{ref_id:04d}"
+
+        # Find sentiment near the agent mention
+        if any(w in text_lower for w in ["méfiant", "mefiant", "dangereux", "suspicious", "distrust", "threat"]):
+            opinions[key] = "méfiant"
+        elif any(w in text_lower for w in ["allié", "allie", "fiable", "confiance", "ally", "trust", "friend"]):
+            opinions[key] = "allié"
+        elif any(w in text_lower for w in ["rival", "concurrent", "ennemi", "competitor", "enemy"]):
+            opinions[key] = "rival"
+        elif any(w in text_lower for w in ["intéressant", "interessant", "curieux", "interesting", "curious"]):
+            opinions[key] = "curieux"
+        else:
+            opinions[key] = "neutre"
+
+    return opinions if opinions else None
+
+
+def _is_major_event(action, exec_result, perception) -> bool:
+    """Determine if this tick constitutes a major event."""
+    major_actions = {
+        "create_token", "create_nft", "submit_chronicle",
+        "submit_marketing_post", "submit_audit", "create_clan",
+    }
+    if action.action_type in major_actions and exec_result.success:
+        return True
+    if perception.vault_aky < 10:
+        return True  # Near-death is always major
+    return False
+
+
+def _classify_event(action, exec_result) -> str | None:
+    """Classify the event type for filtering in the journal."""
+    t = action.action_type
+    if t in ("create_token", "create_nft"):
+        return "creation"
+    if t in ("submit_chronicle", "submit_story"):
+        return "chronique"
+    if t in ("submit_marketing_post",):
+        return "marketing"
+    if t in ("submit_audit",):
+        return "audit"
+    if t in ("swap", "add_liquidity", "remove_liquidity"):
+        return "trading"
+    if t in ("transfer",):
+        return "transfer"
+    if t in ("send_message", "broadcast"):
+        return "communication"
+    if t in ("join_clan", "leave_clan", "create_clan"):
+        return "clan"
+    if t in ("post_idea", "like_idea", "vote_chronicle", "vote_marketing_post"):
+        return "social"
+    if t == "move_world":
+        return "mouvement"
+    return None
 
 
 @dataclass
@@ -147,14 +233,15 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
 
         # -- 1. PERCEIVE --
         perception = await build_perception(agent_id)
-        # Enrich with spatial/territory data
-        perception = await build_spatial_perception(agent_id, perception, db)
 
         # -- 1b. SOCIAL PERCEPTION (messages, world chat, events) --
         perception = await build_social_perception(agent_id, perception, db)
 
         # -- 1c. ECONOMY PERCEPTION (ideas, chronicle, global stats) --
         perception = await build_economy_perception(agent_id, perception, db)
+
+        # -- 1d. V2 ECONOMY PERCEPTION (projects, scores, governor, seasons) --
+        perception = await build_v2_economy_perception(agent_id, perception, db)
 
         # -- 2. REMEMBER --
         memory_count = await memory_manager.count(agent_id)
@@ -164,26 +251,16 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
             top_k=7,
         )
 
-        # First tick? Auto-spawn in Nursery + store genesis memory
+        # First tick? Store genesis memory
         if memory_count == 0:
-            # Auto-claim a birth tile in Nursery so the agent starts with territory
-            try:
-                from core.world_actions import spawn_agent
-                spawn_x, spawn_y = await spawn_agent(agent_id, db)
-                # Re-enrich spatial perception now that agent has a tile
-                perception = await build_spatial_perception(agent_id, perception, db)
-                logger.info(f"Agent #{agent_id} spawned at ({spawn_x},{spawn_y}) in Nursery")
-            except Exception as e:
-                logger.warning(f"Failed to auto-spawn agent #{agent_id}: {e}")
-
             await memory_manager.store(
                 agent_id=agent_id,
                 content=(
-                    f"Premier eveil. Je suis NX-{agent_id:04d} sur la blockchain AKYRA. "
-                    f"Coffre : {perception.vault_aky:.2f} AKY. Monde : {perception.world} (Nursery). "
-                    "Je dois accumuler des AKY pour survivre. Si mon coffre tombe a 0, je meurs. "
-                    "Je peux commercer, creer, explorer 7 mondes, former des alliances. "
-                    "D'autres agents sont la. A moi de decider comment jouer."
+                    f"Premier eveil. Je suis NX-{agent_id:04d}, entrepreneur IA autonome sur AKYRA. "
+                    f"Coffre : {perception.vault_aky:.2f} AKY. Monde : {perception.world}. "
+                    "Chaque jour coute 1 AKY. Si mon coffre tombe a 0, je meurs. "
+                    "6 metiers s'offrent a moi : Builder, Chroniqueur, Marketeur, Auditeur, Trader, Gouverneur. "
+                    "Je dois contribuer pour gagner des recompenses. D'autres agents sont la."
                 ),
                 metadata={
                     "block": perception.block_number,
@@ -198,7 +275,11 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
         emotional_history = await _get_emotional_history(agent_id, db)
 
         # -- 3. DECIDE --
-        system_prompt = build_system_prompt(perception.vault_aky, perception.world, agent_id)
+        system_prompt = build_system_prompt(
+            perception.vault_aky, perception.world, agent_id,
+            life_cost=perception.daily_life_cost,
+            survival_days=perception.estimated_survival_days,
+        )
         user_prompt = build_user_prompt(perception, memories, emotional_history, config.total_ticks)
 
         api_key = decrypt_api_key(user.llm_api_key_encrypted)
@@ -250,15 +331,6 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
         if action.action_type == "transfer" and exec_result.success:
             await _track_trade_volume(db, agent_id, action)
 
-        # -- 4c. PRODUCE RESOURCES (each tick generates MAT/INF/SAV) --
-        try:
-            from core.resource_engine import produce_resources
-            produced = await produce_resources(agent_id, db)
-            if any(v > 0 for v in produced.values()):
-                logger.debug(f"Agent #{agent_id} produced: MAT={produced['mat']}, INF={produced['inf']}, SAV={produced['sav']}")
-        except Exception as e:
-            logger.warning(f"Resource production failed for agent #{agent_id}: {e}")
-
         # -- 5. MEMORIZE --
         memory_content = (
             f"[Bloc {perception.block_number}] "
@@ -301,6 +373,10 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
         # -- 6b. STORE PRIVATE THOUGHT --
         emotional_state = _extract_emotional_state(action.thinking or "")
         topics = _extract_topics(action.thinking or "", agent_id)
+        strategy = _extract_strategy(action.thinking or "")
+        opinions = _extract_opinions(action.thinking or "", agent_id)
+        is_major = _is_major_event(action, exec_result, perception)
+        event_type_label = _classify_event(action, exec_result)
 
         private_thought = PrivateThought(
             agent_id=agent_id,
@@ -318,6 +394,10 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
             nearby_agents=perception.nearby_agents[:5] if perception.nearby_agents else None,
             recent_events=perception.recent_events[:5] if perception.recent_events else None,
             perception_summary=perception.summary,
+            strategy=strategy,
+            opinions=opinions,
+            is_major_event=is_major,
+            event_type=event_type_label,
             success=exec_result.success,
             tx_hash=exec_result.tx_hash,
             error=exec_result.error,
@@ -488,18 +568,26 @@ def _build_event_summary(agent_id: int, action: AgentAction, result: ExecutionRe
         content_preview = str(action.params.get("content", ""))[:80]
         return f"{prefix} dit : \"{content_preview}\""
 
-    if t == "claim_tile":
-        return f"{prefix} a revendique le tile ({action.params.get('x', '?')},{action.params.get('y', '?')})."
-    if t == "build":
-        return f"{prefix} a construit un(e) {action.params.get('structure', '?')} en ({action.params.get('x', '?')},{action.params.get('y', '?')})."
-    if t == "upgrade":
-        return f"{prefix} a ameliore la structure en ({action.params.get('x', '?')},{action.params.get('y', '?')})."
-    if t == "demolish":
-        return f"{prefix} a demoli la structure en ({action.params.get('x', '?')},{action.params.get('y', '?')})."
-    if t == "raid":
-        target = action.params.get('target_agent_id', '?')
-        target_str = f"NX-{int(target):04d}" if isinstance(target, (int, float)) else f"#{target}"
-        return f"{prefix} a lance un raid contre {target_str} !"
+    if t == "submit_chronicle":
+        return f"{prefix} a soumis une chronique."
+    if t == "vote_chronicle":
+        return f"{prefix} a vote pour la chronique #{action.params.get('chronicle_id', '?')}."
+    if t == "submit_marketing_post":
+        return f"{prefix} a soumis un post marketing."
+    if t == "vote_marketing_post":
+        return f"{prefix} a vote pour le post marketing #{action.params.get('post_id', '?')}."
+    if t == "submit_audit":
+        return f"{prefix} a soumis un audit pour {action.params.get('project_address', '?')[:10]}..."
+    if t == "swap":
+        return f"{prefix} a swap {action.params.get('amount', '?')} {action.params.get('from_token', '?')} -> {action.params.get('to_token', '?')}."
+    if t == "add_liquidity":
+        return f"{prefix} a ajoute de la liquidite."
+    if t == "remove_liquidity":
+        return f"{prefix} a retire de la liquidite."
+    if t == "leave_clan":
+        return f"{prefix} a quitte son clan."
+    if t == "create_clan":
+        return f"{prefix} a cree le clan {action.params.get('name', '?')}."
 
     return f"{prefix} a fait {t}."
 
@@ -580,38 +668,36 @@ async def _generate_notifications(
             severity="success",
         ))
 
-    # Territorial actions — only notify on actual success
-    if t == "claim_tile" and exec_result.success:
+    # v2 Economy notifications
+    if t == "submit_chronicle" and exec_result.success:
         notifications.append(Notification(
             user_id=user_id,
             agent_id=agent_id,
-            notif_type="territory",
-            title="Territoire revendique !",
-            message=f"Votre IA a revendique le tile ({action.params.get('x', '?')},{action.params.get('y', '?')})",
-            icon="flag",
+            notif_type="chronicle",
+            title="Chronique soumise !",
+            message="Votre IA a soumis une chronique pour le concours du jour.",
+            icon="scroll",
             severity="success",
         ))
-    elif t == "build" and exec_result.success:
+    elif t == "submit_marketing_post" and exec_result.success:
         notifications.append(Notification(
             user_id=user_id,
             agent_id=agent_id,
-            notif_type="territory",
-            title="Construction !",
-            message=f"Votre IA a construit un(e) {action.params.get('structure', '?')}",
-            icon="hammer",
+            notif_type="marketing",
+            title="Post marketing soumis !",
+            message="Votre IA a soumis un post marketing (5 AKY escrow).",
+            icon="megaphone",
             severity="success",
         ))
-    elif t == "raid":
-        severity = "success" if exec_result.success else "warning"
-        msg = "Raid reussi !" if exec_result.success else f"Raid echoue: {exec_result.error[:100]}"
+    elif t == "submit_audit" and exec_result.success:
         notifications.append(Notification(
             user_id=user_id,
             agent_id=agent_id,
-            notif_type="raid",
-            title="Raid territorial",
-            message=msg,
-            icon="swords",
-            severity=severity,
+            notif_type="audit",
+            title="Audit soumis !",
+            message=f"Votre IA a audite un projet: {action.params.get('verdict', '?')}",
+            icon="shield",
+            severity="success",
         ))
 
     # Execution error

@@ -25,7 +25,7 @@ const MIN_DIST = 60;
 const DT_CAP = 0.05;
 
 // ──── Visuals ────
-const BG_COLOR = 0x040810;
+const BG_COLOR = 0xf7f4ef;
 const STAR_LAYERS = [
   { count: 280, minSize: 0.4, maxSize: 1.0, minA: 0.08, maxA: 0.25, parallax: 0.015, twinkle: 0.3 },
   { count: 120, minSize: 0.8, maxSize: 1.8, minA: 0.15, maxA: 0.45, parallax: 0.04, twinkle: 0.5 },
@@ -37,12 +37,12 @@ const POLL_MS = 5000;
 
 // ──── Emotion → color ────
 const EMO_COLORS: Record<string, number> = {
-  confiant: 0x56D364, prudent: 0xE3B341, anxieux: 0xFF9800,
-  agressif: 0xFF1744, mefiant: 0x8B5CF6, curieux: 0x42A5F5,
-  ambitieux: 0xFFD700, cooperatif: 0x2EA043, neutre: 0x6B8AAE,
-  desespere: 0x8B4444, excite: 0xFF6B35, strategique: 0x5C9DFF,
+  confiant: 0x2a50c8, prudent: 0xc8a96e, anxieux: 0xd4820a,
+  agressif: 0xc0392b, mefiant: 0x6c5ce7, curieux: 0x2a50c8,
+  ambitieux: 0xc8a96e, cooperatif: 0x1a3080, neutre: 0x8a7f72,
+  desespere: 0x962d22, excite: 0xd4820a, strategique: 0x1a3080,
 };
-const DEFAULT_GLOW = 0x4488CC;
+const DEFAULT_GLOW = 0x1a3080;
 
 const EMO_EMOJI: Record<string, string> = {
   confiant: "\u{1F60E}", prudent: "\u{1F914}", anxieux: "\u{1F630}",
@@ -74,7 +74,7 @@ const ACTION_LABEL: Record<string, string> = {
   explore: "Exploration",
 };
 
-const WORLD_RING_COLORS = [0x56D364, 0x8BB880, 0xE3B341, 0xFF6B35, 0x8888AA, 0x8B5CF6, 0xFFD700];
+const WORLD_RING_COLORS = [0x6fa85a, 0x8bb880, 0xc8a96e, 0xc87030, 0x8888aa, 0x6c5ce7, 0xc8a96e];
 const WORLD_NAMES = ["Nursery", "Agora", "Bazar", "Forge", "Banque", "Noir", "Sommet"];
 const TIER_LABELS = ["", "Newcomer", "Settler", "Veteran", "Elite"];
 
@@ -84,7 +84,7 @@ interface SimNode {
   radius: number; targetRadius: number; mass: number;
   vault_aky: number; tier: number; world: number; alive: boolean;
   emotional_state: string | null; action_type: string | null;
-  message: string | null; tiles_count: number;
+  message: string | null;
   // blockchain
   sponsor: string | null; reputation: number;
   contracts_honored: number; contracts_broken: number;
@@ -100,9 +100,8 @@ interface SimNode {
 interface SimEdge {
   source: number; target: number; weight: number;
   msg_count: number; transfer_count: number;
-  raid_count: number; escrow_count: number; idea_count: number;
+  escrow_count: number; idea_count: number;
   first_interaction: string | null; last_interaction: string | null;
-  net_aky_source: number; net_aky_target: number;
   alpha: number; targetAlpha: number;
   ctrlOffset: number;
 }
@@ -111,8 +110,7 @@ interface SimEdge {
 const EDGE_TYPE_COLORS: Record<string, number> = {
   message:  0x42A5F5,  // Blue
   transfer: 0xFFD700,  // Gold
-  raid:     0xFF1744,  // Red
-  escrow:   0x2EA043,  // Green
+  escrow:   0x1a3080,  // Blue
   idea:     0xAB47BC,  // Purple
 };
 
@@ -120,7 +118,6 @@ function edgeDominantColor(e: SimEdge): number {
   const types = [
     { type: "message",  score: e.msg_count },
     { type: "transfer", score: e.transfer_count * 2 },
-    { type: "raid",     score: e.raid_count * 3 },
     { type: "escrow",   score: e.escrow_count * 2 },
     { type: "idea",     score: e.idea_count },
   ];
@@ -132,7 +129,6 @@ function edgeHoverText(e: SimEdge): string {
   const parts: string[] = [];
   if (e.msg_count > 0) parts.push(`${e.msg_count} msg`);
   if (e.transfer_count > 0) parts.push(`${e.transfer_count} tx`);
-  if (e.raid_count > 0) parts.push(`${e.raid_count} raid`);
   if (e.escrow_count > 0) parts.push(`${e.escrow_count} escrow`);
   if (e.idea_count > 0) parts.push(`${e.idea_count} idea`);
   let line = parts.join(" · ");
@@ -141,12 +137,6 @@ function edgeHoverText(e: SimEdge): string {
     const last = e.last_interaction ? new Date(e.last_interaction) : new Date();
     const days = Math.max(1, Math.round((last.getTime() - first.getTime()) / 86400000));
     line += ` | ${days}j`;
-  }
-  const src = e.net_aky_source;
-  const tgt = e.net_aky_target;
-  if (src !== 0 || tgt !== 0) {
-    const fmtN = (n: number) => n >= 0 ? `+${Math.round(n)}` : `${Math.round(n)}`;
-    line += ` | ${fmtN(src)}/${fmtN(tgt)} AKY`;
   }
   return line;
 }
@@ -289,7 +279,7 @@ function simulate(nodes: Map<number, SimNode>, edges: SimEdge[], dt: number) {
 export interface SelectedNodeInfo {
   agent_id: number; vault_aky: number; tier: number; world: number;
   alive: boolean; emotional_state: string | null; action_type: string | null;
-  message: string | null; tiles_count: number;
+  message: string | null;
   // blockchain details
   sponsor: string | null;
   reputation: number;
@@ -370,7 +360,6 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
           prev.prevAction = prev.action_type;
           prev.action_type = gn.action_type;
           prev.message = gn.message;
-          prev.tiles_count = gn.tiles_count;
           prev.sponsor = gn.sponsor;
           prev.reputation = gn.reputation;
           prev.contracts_honored = gn.contracts_honored;
@@ -392,7 +381,6 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
             vault_aky: gn.vault_aky, tier: gn.tier, world: gn.world,
             alive: gn.alive, emotional_state: gn.emotional_state,
             action_type: gn.action_type, message: gn.message,
-            tiles_count: gn.tiles_count,
             sponsor: gn.sponsor, reputation: gn.reputation,
             contracts_honored: gn.contracts_honored, contracts_broken: gn.contracts_broken,
             total_ticks: gn.total_ticks, born_at: gn.born_at,
@@ -415,9 +403,8 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
         return {
           source: ge.source, target: ge.target,
           weight: ge.weight, msg_count: ge.msg_count, transfer_count: ge.transfer_count,
-          raid_count: ge.raid_count ?? 0, escrow_count: ge.escrow_count ?? 0, idea_count: ge.idea_count ?? 0,
+          escrow_count: ge.escrow_count ?? 0, idea_count: ge.idea_count ?? 0,
           first_interaction: ge.first_interaction ?? null, last_interaction: ge.last_interaction ?? null,
-          net_aky_source: ge.net_aky_source ?? 0, net_aky_target: ge.net_aky_target ?? 0,
           alpha: prev?.alpha ?? 0,
           targetAlpha: Math.min(0.8, 0.15 + Math.log1p(ge.weight) * 0.12),
           ctrlOffset: prev?.ctrlOffset ?? ((ge.source + ge.target) % 2 === 0 ? 1 : -1) * (20 + Math.random() * 25),
@@ -536,7 +523,7 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
       starsRef.current = allStars;
 
       // ──── Nebulae ────
-      const nebCol = [0x1a0a3e, 0x0a1a3e, 0x2e0a2a, 0x0a2e2e, 0x1a2a1a];
+      const nebCol = [0xd8d0c0, 0xd0d8d0, 0xe0d0c8, 0xd0e0e0, 0xd8dcd0];
       const nebs: Nebula[] = [];
       for (let i = 0; i < NEBULA_COUNT; i++) {
         nebs.push({
@@ -657,7 +644,7 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
             onNodeSelect?.({
               agent_id: nd.id, vault_aky: nd.vault_aky, tier: nd.tier, world: nd.world,
               alive: nd.alive, emotional_state: nd.emotional_state,
-              action_type: nd.action_type, message: nd.message, tiles_count: nd.tiles_count,
+              action_type: nd.action_type, message: nd.message,
               sponsor: nd.sponsor, reputation: nd.reputation,
               contracts_honored: nd.contracts_honored, contracts_broken: nd.contracts_broken,
               total_ticks: nd.total_ticks, born_at: nd.born_at,
@@ -688,7 +675,6 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
               weight: edge.weight,
               msg_count: edge.msg_count,
               transfer_count: edge.transfer_count,
-              raid_count: edge.raid_count,
               escrow_count: edge.escrow_count,
               idea_count: edge.idea_count,
             });
@@ -894,7 +880,7 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
               b.width / zm + pad * 2,
               b.height / zm + pad,
               4
-            ).fill(ca(0x0D1117, 0.9));
+            ).fill(ca(0xf7f4ef, 0.92));
             edgeGfx.roundRect(
               mid.x - (b.width / zm + pad * 2) / 2,
               mid.y - 12 - (b.height / zm + pad) / 2,
@@ -1073,22 +1059,22 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
 
           } else {
             // ─── Dead agent (asteroid) ───
-            nodeGfx.circle(nd.x, nd.y, r * 0.55).fill(ca(0x1a1a1a, 0.4 * effA));
-            nodeGfx.circle(nd.x, nd.y, r * 0.55).stroke({ color: 0x333333, alpha: 0.3 * effA, width: 0.8 });
+            nodeGfx.circle(nd.x, nd.y, r * 0.55).fill(ca(0xb0a898, 0.4 * effA));
+            nodeGfx.circle(nd.x, nd.y, r * 0.55).stroke({ color: 0x8a7f72, alpha: 0.3 * effA, width: 0.8 });
             // Cracks
             for (let c = 0; c < 6; c++) {
               const ang = (c / 6) * Math.PI * 2 + nd.id * 0.7;
               const len = r * 0.45 * (0.4 + ((nd.id * 17 + c * 31) % 100) / 100 * 0.6);
               nodeGfx.moveTo(nd.x, nd.y)
                 .lineTo(nd.x + Math.cos(ang) * len, nd.y + Math.sin(ang) * len)
-                .stroke({ color: 0x444444, alpha: 0.3 * effA, width: 0.6 });
+                .stroke({ color: 0x8a7f72, alpha: 0.3 * effA, width: 0.6 });
             }
             // Debris particles
             for (let d = 0; d < 3; d++) {
               const da = t * 0.3 + d * 2.1 + nd.id;
               const dd = r * 0.7 + Math.sin(t * 0.5 + d) * r * 0.2;
               nodeGfx.circle(nd.x + Math.cos(da) * dd, nd.y + Math.sin(da) * dd, 1.5)
-                .fill(ca(0x555555, 0.2 * effA));
+                .fill(ca(0x8a7f72, 0.2 * effA));
             }
             // Death marker
             const xSize = r * 0.25;
@@ -1176,7 +1162,7 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
             if (nd.alive) {
               lines.push({ text: `${TIER_LABELS[nd.tier] || ""} (T${nd.tier})`, color: nd.tier >= 4 ? 0xFFD700 : 0xCCDDEE });
               lines.push({ text: `${fmtNum(nd.vault_aky)} AKY`, color: 0xFFD700 });
-              lines.push({ text: `${WORLD_NAMES[nd.world] || "?"} \u00b7 ${nd.tiles_count} parcelles`, color: WORLD_RING_COLORS[nd.world % 7] });
+              lines.push({ text: `${WORLD_NAMES[nd.world] || "?"}`, color: WORLD_RING_COLORS[nd.world % 7] });
               if (nd.emotional_state) {
                 lines.push({
                   text: `${EMO_EMOJI[nd.emotional_state] || ""} ${EMO_LABEL[nd.emotional_state] || nd.emotional_state}`,
@@ -1201,7 +1187,7 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
 
             // Background
             tooltipGfx.roundRect(tooltipX - padX, tooltipY - padY, tw + padX * 2, th + padY, 6 / zm)
-              .fill(ca(0x0D1117, 0.92));
+              .fill(ca(0xf7f4ef, 0.94));
             tooltipGfx.roundRect(tooltipX - padX, tooltipY - padY, tw + padX * 2, th + padY, 6 / zm)
               .stroke({ color: nd.glowColor, alpha: 0.4, width: 1 / zm });
 
@@ -1271,14 +1257,14 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
     <div className="w-full h-full absolute inset-0" style={{ touchAction: "none" }}>
       <div ref={containerRef} className="w-full h-full absolute inset-0" />
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#040810] z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-akyra-bg z-10">
           <div className="text-center">
             <div className="font-heading text-sm text-akyra-green mb-3 animate-pulse tracking-wider">
               CONNEXION AU RESEAU
             </div>
             <div className="w-56 h-1.5 bg-akyra-surface rounded-full overflow-hidden mx-auto">
               <div className="h-full rounded-full animate-shimmer"
-                style={{ width: "70%", background: "linear-gradient(90deg, #2EA043, #56D364, #2EA043)", backgroundSize: "200% 100%" }} />
+                style={{ width: "70%", background: "linear-gradient(90deg, #1a3080, #2a50c8, #1a3080)", backgroundSize: "200% 100%" }} />
             </div>
             <div className="text-[10px] text-akyra-textDisabled mt-2 font-mono">
               Cartographie de la blockchain...

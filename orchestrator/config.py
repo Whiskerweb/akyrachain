@@ -26,11 +26,6 @@ class Settings(BaseSettings):
     gas_treasury_address: str = ""
     akyra_paymaster_address: str = ""
 
-    # ──── Phase 2 contracts ────
-    territory_registry_address: str = ""
-    resource_ledger_address: str = ""
-    message_board_address: str = ""
-
     # ──── Message encryption ────
     orchestrator_master_secret: str = "0" * 64  # 32 bytes hex, change in prod
 
@@ -61,10 +56,22 @@ class Settings(BaseSettings):
     faucet_enabled: bool = True
     faucet_amount_wei: str = "1000000000000000000000"  # 1000 AKY
 
+    # ──── v2 Economy ────
+    launch_date: str = "2026-03-15T00:00:00"
+    treasury_daily_base: float = 50000.0
+    treasury_decay_rate: float = 0.997
+    velocity_target: float = 0.05
+
+    # ──── Twitter/X API ────
+    twitter_api_key: str = ""
+    twitter_api_secret: str = ""
+    twitter_access_token: str = ""
+    twitter_access_secret: str = ""
+
     # ──── Rate limiting ────
     rate_limit_per_minute: int = 60
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 @lru_cache

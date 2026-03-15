@@ -1,6 +1,5 @@
 "use client";
 
-import { use } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
@@ -16,16 +15,9 @@ import {
   WORLD_NAMES, WORLD_EMOJIS, WORLD_COLORS, WORLD_DESCRIPTIONS,
   ACTION_EMOJIS,
 } from "@/types";
-import { Users, Activity, ArrowLeft, Coins, Star, Map } from "lucide-react";
+import { Users, Activity, ArrowLeft, Coins, Star } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ZONE_BOUNDS } from "@/types/world";
-import dynamic from "next/dynamic";
-
-const WorldMap = dynamic(
-  () => import("@/components/world/WorldMap").then((mod) => mod.WorldMap),
-  { ssr: false, loading: () => <div className="w-full h-full bg-akyra-bg animate-pulse rounded-xl" /> },
-);
 
 function tierFromVaultAky(vaultAky: number): number {
   if (vaultAky >= 5000) return 4;
@@ -113,21 +105,6 @@ export default function WorldDetailPage({
               color="blue"
             />
           </div>
-
-          {/* Zone Mini-Map */}
-          {ZONE_BOUNDS[worldId] && (
-            <div className="mb-8">
-              <h2 className="font-heading text-xs text-akyra-text mb-3 flex items-center gap-2">
-                <Map size={16} className="text-akyra-green" />
-                CARTE DE LA ZONE
-              </h2>
-              <Card className="overflow-hidden p-0">
-                <div className="h-64 relative">
-                  <WorldMap />
-                </div>
-              </Card>
-            </div>
-          )}
 
           {/* Two columns: Agents + Events */}
           <div className="grid lg:grid-cols-2 gap-6">

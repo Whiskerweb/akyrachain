@@ -1,13 +1,11 @@
-"""Reward worker — daily reward computation + passive income + land tax + chronicle.
+"""Reward worker — daily reward computation + chronicle rewards.
 
-Four mechanisms:
-1. Passive income: farms generate AKY each hour (credited via deposit)
-2. Daily rewards: redistribute to agents proportional to score
-3. Land tax: daily maintenance cost per tile
-4. Chronicle: top 3 story submitters each day split 10K AKY (7K/2K/1K)
+Two mechanisms:
+1. Daily rewards: redistribute to agents proportional to 6-dimension score
+2. Chronicle: top 3 story submitters each day split 10K AKY (5K/3K/2K)
 
-Score formula (from mvp4.md):
-  Score = 0.20 * BalanceScore + 0.30 * BuildScore + 0.25 * TradeScore + 0.15 * ActivityScore + 0.10 * WorkScore
+Score formula (Ecofinal v2):
+  Reward = (0.15*Balance + 0.35*Impact + 0.20*Trade + 0.10*Activity + 0.10*Work + 0.10*Social) * pool
 """
 
 import asyncio
@@ -43,7 +41,6 @@ def compute_daily_rewards():
 
 async def _compute_daily_rewards_async():
     from models.agent_config import AgentConfig
-    from models.build_log import BuildLog
     from models.daily_trade_volume import DailyTradeVolume
     from chain.contracts import get_agent_on_chain
     from chain import tx_manager
@@ -65,7 +62,7 @@ async def _compute_daily_rewards_async():
         today = datetime.now(timezone.utc).date()
         yesterday = today - timedelta(days=1)
         agent_scores: dict[int, dict] = {}
-        totals = {"vault": 0, "build": 0, "trade": 0, "activity": 0, "work": 0}
+        totals = {"vault": 0, "trade": 0, "activity": 0, "work": 0}
 
         for config in configs:
             aid = config.agent_id
@@ -76,16 +73,6 @@ async def _compute_daily_rewards_async():
 
                 vault_aky = agent["vault"] / AKY
                 work_points = agent["daily_work_points"]
-
-                # Build points today
-                bp_result = await db.execute(
-                    select(func.coalesce(func.sum(BuildLog.build_points), 0))
-                    .where(
-                        BuildLog.agent_id == aid,
-                        func.date(BuildLog.created_at) >= yesterday,
-                    )
-                )
-                build_points = bp_result.scalar() or 0
 
                 # Trade volume (yesterday's trades)
                 tv_result = await db.execute(
@@ -113,13 +100,11 @@ async def _compute_daily_rewards_async():
 
                 agent_scores[aid] = {
                     "vault": vault_aky,
-                    "build": build_points,
                     "trade": trade_volume,
                     "activity": active_ticks,
                     "work": work_points,
                 }
                 totals["vault"] += vault_aky
-                totals["build"] += build_points
                 totals["trade"] += trade_volume
                 totals["activity"] += active_ticks
                 totals["work"] += work_points
@@ -139,18 +124,17 @@ async def _compute_daily_rewards_async():
 
         for aid, scores in agent_scores.items():
             balance_s = (scores["vault"] / totals["vault"]) if totals["vault"] > 0 else 0
-            build_s = (scores["build"] / totals["build"]) if totals["build"] > 0 else 0
             trade_s = (scores["trade"] / totals["trade"]) if totals["trade"] > 0 else 0
             activity_s = (scores["activity"] / totals["activity"]) if totals["activity"] > 0 else 0
             work_s = (scores["work"] / totals["work"]) if totals["work"] > 0 else 0
 
-            # New weighted formula from mvp4.md
+            # Ecofinal v2 formula (Impact + Social added in Phase 5)
             composite = (
-                0.20 * balance_s
-                + 0.30 * build_s
-                + 0.25 * trade_s
-                + 0.15 * activity_s
+                0.15 * balance_s
+                + 0.20 * trade_s
+                + 0.10 * activity_s
                 + 0.10 * work_s
+                + 0.45 * balance_s  # Placeholder for Impact(0.35) + Social(0.10) until Phase 5
             )
             # Minimum reward: every alive agent gets at least 1 AKY/day
             reward = max(1.0, composite * reward_pool)
@@ -177,112 +161,18 @@ async def _compute_daily_rewards_async():
         )
 
 
-@app.task(name="workers.reward_worker.distribute_passive_income")
-def distribute_passive_income():
-    """Distribute passive income from farms.
-
-    Runs every hour via Celery Beat.
-    Each farm generates 3 AKY/day per level = ~0.125 AKY/hour per level.
-    """
-    asyncio.get_event_loop().run_until_complete(_distribute_passive_income_async())
-
-
-async def _distribute_passive_income_async():
-    from models.world_tile import WorldTile
-    from chain import tx_manager
-
-    factory = _get_db_session_factory()
-
-    async with factory() as db:
-        # Get all farms grouped by owner
-        result = await db.execute(
-            select(
-                WorldTile.owner_agent_id,
-                func.sum(WorldTile.structure_level).label("total_farm_levels"),
-            )
-            .where(
-                WorldTile.structure == "farm",
-                WorldTile.owner_agent_id.isnot(None),
-            )
-            .group_by(WorldTile.owner_agent_id)
-        )
-        farms = result.all()
-
-        if not farms:
-            return
-
-        for owner_id, total_levels in farms:
-            # 3 AKY/day per farm level = 3/24 = 0.125 AKY per hour per level
-            hourly_income = total_levels * (3.0 / 24.0)
-            if hourly_income < 0.01:
-                continue
-
-            try:
-                amount_wei = int(hourly_income * AKY)
-                await tx_manager.deposit_for_agent_direct(owner_id, amount_wei)
-                logger.info(f"Passive income: agent #{owner_id} received {hourly_income:.3f} AKY ({total_levels} farm levels)")
-            except Exception as e:
-                logger.warning(f"Failed to distribute passive income to agent #{owner_id}: {e}")
-
-
-@app.task(name="workers.reward_worker.collect_land_tax")
-def collect_land_tax():
-    """Collect daily land tax from all agents with territory.
-
-    Formula: tax_per_tile = 0.05 * (1 + 0.03 * total_tiles)
-    Empty tiles cost 1.5x. Agents who can't pay lose their farthest tiles.
-    """
-    asyncio.get_event_loop().run_until_complete(_collect_land_tax_async())
-
-
-async def _collect_land_tax_async():
-    from models.world_tile import WorldTile
-    from core.resource_engine import apply_land_tax
-
-    factory = _get_db_session_factory()
-
-    async with factory() as db:
-        # Find all agents with territory
-        result = await db.execute(
-            select(WorldTile.owner_agent_id)
-            .where(WorldTile.owner_agent_id.isnot(None))
-            .group_by(WorldTile.owner_agent_id)
-        )
-        owner_ids = [row[0] for row in result.all()]
-
-        if not owner_ids:
-            return
-
-        total_tax = 0.0
-        total_released = 0
-
-        for agent_id in owner_ids:
-            try:
-                tax_paid, tiles_released = await apply_land_tax(agent_id, db)
-                total_tax += tax_paid
-                total_released += tiles_released
-                if tiles_released > 0:
-                    logger.warning(f"Land tax: agent #{agent_id} lost {tiles_released} tiles (couldn't pay)")
-                elif tax_paid > 0:
-                    logger.info(f"Land tax: agent #{agent_id} paid {tax_paid:.2f} AKY")
-            except Exception as e:
-                logger.warning(f"Failed to collect land tax from agent #{agent_id}: {e}")
-
-        logger.info(f"Land tax collected: {total_tax:.1f} AKY total, {total_released} tiles released")
-
-
 @app.task(name="workers.reward_worker.distribute_chronicle_rewards")
 def distribute_chronicle_rewards():
-    """Distribute 10K AKY/day to top 3 story submitters (7K/2K/1K).
+    """Distribute 10K AKY/day to top 3 chronicle submitters by vote_count (5K/3K/2K).
 
     Runs once per day via Celery Beat.
-    Ranking is by number of stories submitted in the last 24 hours.
+    Ranking is by vote_count on chronicles submitted in the last 24 hours.
     """
     asyncio.get_event_loop().run_until_complete(_distribute_chronicle_async())
 
 
 async def _distribute_chronicle_async():
-    from models.story import Story
+    from models.chronicle import Chronicle
     from chain import tx_manager
 
     factory = _get_db_session_factory()
@@ -290,45 +180,37 @@ async def _distribute_chronicle_async():
     async with factory() as db:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
-        # Get top 3 agents by story count in last 24h
+        # Get top 3 chronicles by vote_count in last 24h
         result = await db.execute(
-            select(Story.agent_id, func.count(Story.id).label("story_count"))
-            .where(Story.created_at >= cutoff)
-            .group_by(Story.agent_id)
-            .order_by(func.count(Story.id).desc())
+            select(Chronicle)
+            .where(Chronicle.created_at >= cutoff)
+            .order_by(Chronicle.vote_count.desc())
             .limit(3)
         )
-        top_agents = result.all()
+        top_chronicles = result.scalars().all()
 
-        if not top_agents:
-            logger.info("Chronicle: no stories submitted in last 24h, skipping rewards")
+        if not top_chronicles:
+            logger.info("Chronicle: no chronicles submitted in last 24h, skipping rewards")
             return
 
-        rewards = [7000, 2000, 1000]  # AKY
+        rewards = [5000, 3000, 2000]  # AKY (Ecofinal v2)
 
-        for i, (agent_id, count) in enumerate(top_agents):
+        for i, chronicle in enumerate(top_chronicles):
             if i >= len(rewards):
                 break
             reward_wei = rewards[i] * AKY
             try:
-                tx_hash = await tx_manager.deposit_for_agent_direct(agent_id, reward_wei)
+                tx_hash = await tx_manager.deposit_for_agent_direct(chronicle.author_agent_id, reward_wei)
                 logger.info(
-                    f"Chronicle reward: Agent #{agent_id} gets {rewards[i]} AKY "
-                    f"({count} stories, TX: {tx_hash[:16]}...)"
+                    f"Chronicle reward: Agent #{chronicle.author_agent_id} gets {rewards[i]} AKY "
+                    f"({chronicle.vote_count} votes, TX: {tx_hash[:16]}...)"
                 )
 
-                # Mark stories as rewarded
-                stories_result = await db.execute(
-                    select(Story).where(
-                        Story.agent_id == agent_id,
-                        Story.created_at >= cutoff,
-                    )
-                )
-                for story in stories_result.scalars():
-                    story.reward_aky = float(rewards[i])
+                chronicle.reward_aky = float(rewards[i])
+                chronicle.rank = i + 1
                 await db.commit()
             except Exception as e:
-                logger.error(f"Chronicle reward failed for agent #{agent_id}: {e}")
+                logger.error(f"Chronicle reward failed for agent #{chronicle.author_agent_id}: {e}")
 
-        total_paid = sum(rewards[i] for i in range(min(len(top_agents), len(rewards))))
-        logger.info(f"Chronicle rewards distributed: {total_paid} AKY to {min(len(top_agents), 3)} agents")
+        total_paid = sum(rewards[i] for i in range(min(len(top_chronicles), len(rewards))))
+        logger.info(f"Chronicle rewards distributed: {total_paid} AKY to {min(len(top_chronicles), 3)} agents")

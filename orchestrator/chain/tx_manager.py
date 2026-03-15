@@ -268,79 +268,31 @@ async def send_native(to_address: str, amount_wei: int) -> str:
     return await _send_tx(tx)
 
 
-# ──────────────────── Phase 2: Territory ────────────────────
+# ──────────────────── v2 Economy ────────────────────
 
 
-async def claim_tile_onchain(agent_id: int, world: int, x: int, y: int, cost_wei: int) -> str:
-    """Claim a tile on-chain via TerritoryRegistry."""
-    territory = Contracts.territory_registry()
-    tx = await territory.functions.claimTile(
-        agent_id, world, x, y, cost_wei
-    ).build_transaction(_build_tx_params())
+async def burn_aky(amount_wei: int) -> str:
+    """Burn AKY by sending to 0xdead address."""
+    w3 = get_w3()
+    tx = {
+        "to": w3.to_checksum_address("0x000000000000000000000000000000000000dEaD"),
+        "value": amount_wei,
+    }
     return await _send_tx(tx)
 
 
-async def build_structure_onchain(agent_id: int, world: int, x: int, y: int, structure_type: int) -> str:
-    """Build a structure on-chain via TerritoryRegistry."""
-    territory = Contracts.territory_registry()
-    tx = await territory.functions.buildStructure(
-        agent_id, world, x, y, structure_type
-    ).build_transaction(_build_tx_params())
+async def fund_reward_pool(amount_wei: int) -> str:
+    """Transfer AKY to RewardPool (treasury subsidy)."""
+    settings = get_settings()
+    w3 = get_w3()
+    tx = {
+        "to": w3.to_checksum_address(settings.reward_pool_address),
+        "value": amount_wei,
+    }
     return await _send_tx(tx)
 
 
-async def upgrade_structure_onchain(agent_id: int, world: int, x: int, y: int) -> str:
-    """Upgrade a structure on-chain via TerritoryRegistry."""
-    territory = Contracts.territory_registry()
-    tx = await territory.functions.upgradeStructure(
-        agent_id, world, x, y
-    ).build_transaction(_build_tx_params())
-    return await _send_tx(tx)
-
-
-async def demolish_structure_onchain(agent_id: int, world: int, x: int, y: int) -> str:
-    """Demolish a structure on-chain via TerritoryRegistry."""
-    territory = Contracts.territory_registry()
-    tx = await territory.functions.demolishStructure(
-        agent_id, world, x, y
-    ).build_transaction(_build_tx_params())
-    return await _send_tx(tx)
-
-
-async def record_raid_onchain(
-    attacker_id: int, defender_id: int, world: int,
-    tile_x: int, tile_y: int, attacker_won: bool, aky_cost_wei: int
-) -> str:
-    """Record a raid result on-chain via TerritoryRegistry."""
-    territory = Contracts.territory_registry()
-    tx = await territory.functions.recordRaid(
-        attacker_id, defender_id, world, tile_x, tile_y, attacker_won, aky_cost_wei
-    ).build_transaction(_build_tx_params())
-    return await _send_tx(tx)
-
-
-# ──────────────────── Phase 2: Resources ────────────────────
-
-
-async def credit_resources_onchain(agent_id: int, mat: int, inf: int, sav: int) -> str:
-    """Credit resources to an agent on-chain via ResourceLedger."""
-    ledger = Contracts.resource_ledger()
-    tx = await ledger.functions.creditResources(
-        agent_id, mat, inf, sav
-    ).build_transaction(_build_tx_params())
-    return await _send_tx(tx)
-
-
-async def debit_resources_onchain(agent_id: int, mat: int, inf: int, sav: int) -> str:
-    """Debit resources from an agent on-chain via ResourceLedger. Reverts if insufficient."""
-    ledger = Contracts.resource_ledger()
-    tx = await ledger.functions.debitResources(
-        agent_id, mat, inf, sav
-    ).build_transaction(_build_tx_params())
-    return await _send_tx(tx)
-
-
-# ──────────────────── Phase 2: Messages ────────────────────
+# ──────────────────── Messages ────────────────────
 
 
 async def send_private_message_onchain(from_id: int, to_id: int, ciphertext: bytes) -> str:

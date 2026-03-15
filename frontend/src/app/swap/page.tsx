@@ -358,7 +358,7 @@ export default function SwapPage() {
               className={cn(
                 "flex-1 py-2.5 rounded-xl text-xs font-mono uppercase tracking-widest transition-all duration-200",
                 activeTab === tab
-                  ? "bg-akyra-surface text-akyra-text shadow-lg shadow-black/30"
+                  ? "bg-akyra-surface text-akyra-text shadow-lg shadow-black/10"
                   : "text-akyra-textDisabled/40 hover:text-akyra-textSecondary",
               )}
             >
@@ -375,7 +375,7 @@ export default function SwapPage() {
               <div className="absolute -inset-4 bg-gradient-to-b from-akyra-green/[0.07] via-akyra-purple/[0.04] to-transparent rounded-3xl blur-2xl pointer-events-none" />
               <div className="absolute -inset-2 bg-gradient-to-br from-akyra-green/[0.03] to-akyra-purple/[0.03] rounded-3xl pointer-events-none" />
 
-              <Card className="relative bg-[#0B1018]/90 backdrop-blur-2xl border-akyra-border/20 p-0 overflow-visible rounded-2xl shadow-2xl shadow-black/60">
+              <Card className="relative bg-white/90 backdrop-blur-2xl border-akyra-border/20 p-0 overflow-visible rounded-2xl shadow-2xl shadow-black/10">
                 {/* From section */}
                 <div className="p-5 pb-4">
                   <div className="flex items-center justify-between mb-3">
@@ -430,7 +430,7 @@ export default function SwapPage() {
                 <div className="flex justify-center -my-3 relative z-20">
                   <button
                     onClick={flipDirection}
-                    className="w-10 h-10 rounded-full bg-akyra-surface border-[3px] border-[#0B1018] flex items-center justify-center hover:bg-akyra-green/10 hover:border-akyra-green/20 transition-all duration-300 hover:rotate-180 shadow-lg shadow-black/40 group"
+                    className="w-10 h-10 rounded-full bg-akyra-surface border-[3px] border-white flex items-center justify-center hover:bg-akyra-green/10 hover:border-akyra-green/20 transition-all duration-300 hover:rotate-180 shadow-lg shadow-black/10 group"
                   >
                     <ArrowDownUp size={16} className="text-akyra-textSecondary group-hover:text-akyra-green transition-colors" />
                   </button>
@@ -610,7 +610,7 @@ export default function SwapPage() {
           <div className="relative">
             <div className="absolute -inset-4 bg-gradient-to-b from-akyra-purple/[0.06] via-akyra-blue/[0.03] to-transparent rounded-3xl blur-2xl pointer-events-none" />
 
-            <Card className="relative bg-[#0B1018]/90 backdrop-blur-2xl border-akyra-border/20 p-0 overflow-visible rounded-2xl shadow-2xl shadow-black/60">
+            <Card className="relative bg-white/90 backdrop-blur-2xl border-akyra-border/20 p-0 overflow-visible rounded-2xl shadow-2xl shadow-black/10">
               {/* From chain */}
               <div className="p-5 pb-4">
                 <span className="text-[11px] text-akyra-textSecondary font-mono tracking-wider block mb-3">
@@ -642,7 +642,7 @@ export default function SwapPage() {
 
               {/* Floating arrow */}
               <div className="flex justify-center -my-3 relative z-20">
-                <div className="w-10 h-10 rounded-full bg-akyra-surface border-[3px] border-[#0B1018] flex items-center justify-center shadow-lg shadow-black/40">
+                <div className="w-10 h-10 rounded-full bg-akyra-surface border-[3px] border-white flex items-center justify-center shadow-lg shadow-black/10">
                   <ArrowRight size={16} className="text-akyra-textSecondary rotate-90" />
                 </div>
               </div>
@@ -736,11 +736,11 @@ export default function SwapPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            className="absolute inset-0 bg-black/30 backdrop-blur-md"
             onClick={() => setShowTokenModal(false)}
           />
           {/* Modal */}
-          <div className="relative bg-[#0B1018] border border-akyra-border/25 rounded-2xl w-full max-w-md mx-4 shadow-2xl shadow-black/80 overflow-hidden">
+          <div className="relative bg-white border border-akyra-border/25 rounded-2xl w-full max-w-md mx-4 shadow-2xl shadow-black/10 overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-akyra-border/15">
               <span className="text-base text-akyra-text font-mono font-bold">Select a token</span>
