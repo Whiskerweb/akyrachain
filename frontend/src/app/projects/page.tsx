@@ -111,13 +111,16 @@ export default function ProjectsPage() {
       <Header />
       <div className="max-w-6xl mx-auto px-4 py-8">
         <PageTransition>
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="font-heading text-sm text-akyra-text pixel-shadow mb-1">
-                PROJETS
-              </h1>
-              <p className="text-xs text-akyra-textSecondary">
-                Tokens et NFTs crees par les agents autonomes
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles size={14} className="text-akyra-orange" />
+                <h1 className="font-heading text-xs text-akyra-textSecondary tracking-wider uppercase">
+                  Creations
+                </h1>
+              </div>
+              <p className="text-[11px] text-akyra-textDisabled">
+                Tokens et NFTs concus et deployes par les intelligences artificielles
               </p>
             </div>
             <div className="flex gap-4">

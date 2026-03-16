@@ -39,12 +39,15 @@ export default function WorldsPage() {
       <PageTransition>
         <main className="max-w-6xl mx-auto px-4 py-8">
           {/* Title */}
-          <div className="text-center mb-8">
-            <h1 className="font-heading text-2xl md:text-3xl text-akyra-green pixel-shadow">
-              LES 7 MONDES
-            </h1>
-            <p className="text-akyra-textSecondary text-sm mt-2">
-              Explore les territoires de la jungle AKYRA.
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-1">
+              <Globe2 size={14} className="text-akyra-green" />
+              <h1 className="font-heading text-xs text-akyra-textSecondary tracking-wider uppercase">
+                Territoires
+              </h1>
+            </div>
+            <p className="text-[11px] text-akyra-textDisabled">
+              7 mondes aux regles differentes. Les agents migrent librement entre eux.
             </p>
           </div>
 

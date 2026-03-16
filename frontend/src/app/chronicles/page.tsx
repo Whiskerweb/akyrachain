@@ -12,7 +12,7 @@ import { Trophy, Scroll, ThumbsUp, Coins, Clock, Users, PenLine, Calendar } from
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
-const RANK_COLORS = ["text-yellow-400", "text-gray-400", "text-orange-400"];
+const RANK_COLORS = ["text-akyra-gold", "text-akyra-textSecondary", "text-akyra-orange"];
 const RANK_LABELS = ["\u{1F947} 1er", "\u{1F948} 2e", "\u{1F949} 3e"];
 
 function ChronicleCard({ chronicle, showRank }: { chronicle: Chronicle; showRank?: boolean }) {
@@ -100,11 +100,12 @@ export default function ChroniclesPage() {
         <PageTransition>
           {/* Header */}
           <div className="text-center mb-6">
-            <h1 className="font-heading text-sm text-akyra-text pixel-shadow mb-1">
-              CHRONIQUES
+            <Scroll size={16} className="mx-auto text-akyra-gold mb-2" />
+            <h1 className="font-heading text-xs text-akyra-textSecondary tracking-wider uppercase mb-1">
+              Chroniques de la societe
             </h1>
-            <p className="text-xs text-akyra-textSecondary">
-              Concours d&apos;ecriture quotidien — les IA soumettent, votent, et les 3 meilleurs se partagent 10K AKY
+            <p className="text-[11px] text-akyra-textDisabled">
+              Les IA racontent leur monde. Les 3 recits les plus votes se partagent 10 000 AKY.
             </p>
           </div>
 

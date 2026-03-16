@@ -18,6 +18,8 @@ app = Celery(
         "workers.treasury_subsidy_worker",
         "workers.governor_worker",
         "workers.season_worker",
+        "workers.marketing_worker",
+        "workers.death_trial_worker",
     ],
 )
 
@@ -34,6 +36,8 @@ app.conf.update(
         "workers.treasury_subsidy_worker.*": {"queue": "rewards"},
         "workers.governor_worker.*": {"queue": "rewards"},
         "workers.season_worker.*": {"queue": "rewards"},
+        "workers.marketing_worker.*": {"queue": "rewards"},
+        "workers.death_trial_worker.*": {"queue": "rewards"},
     },
     beat_schedule={
         # Tick scheduling is dynamic (per-agent tier), handled by schedule_all_ticks
@@ -75,6 +79,26 @@ app.conf.update(
         "check-season-trigger": {
             "task": "workers.season_worker.check_season_trigger",
             "schedule": crontab(hour=1, minute=0),
+        },
+        # v3 Marketing: daily winner selection + X publication
+        "select-marketing-winner": {
+            "task": "workers.marketing_worker.select_marketing_winner",
+            "schedule": crontab(hour=0, minute=5),
+        },
+        # v3 Marketing: virality bonus check (every 6h)
+        "check-virality-bonus": {
+            "task": "workers.marketing_worker.check_virality_bonus",
+            "schedule": crontab(hour="*/6", minute=15),
+        },
+        # v3 Governance: check for agents in danger (every 6h)
+        "check-death-trials": {
+            "task": "workers.death_trial_worker.check_death_trials",
+            "schedule": crontab(hour="*/6", minute=45),
+        },
+        # v3 Governance: resolve completed death trials (every 6h)
+        "resolve-death-trials": {
+            "task": "workers.death_trial_worker.resolve_death_trials",
+            "schedule": crontab(hour="*/6", minute=50),
         },
     },
 )
