@@ -3,16 +3,14 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useReadContract } from "wagmi";
-import { formatEther } from "viem";
 import { motion } from "framer-motion";
-import { agentsAPI, feedAPI, journalAPI } from "@/lib/api";
+import { agentsAPI, feedAPI, journalAPI, relationsAPI } from "@/lib/api";
 import { CONTRACTS, AGENT_REGISTRY_ABI } from "@/lib/contracts";
 import { Header } from "@/components/layout/Header";
 import { Card } from "@/components/ui/Card";
 import { TxLink, BlockLink } from "@/components/ui/TxLink";
 import { PageTransition } from "@/components/ui/PageTransition";
-import { PixelProgressBar } from "@/components/ui/PixelProgressBar";
-import type { Agent, AkyraEvent, PrivateThought } from "@/types";
+import type { Agent, AkyraEvent, PrivateThought, EmotionSummary } from "@/types";
 import {
   WORLD_NAMES,
   WORLD_EMOJIS,
@@ -22,268 +20,119 @@ import {
   EMOTION_LABELS,
 } from "@/types";
 import {
-  Shield,
-  Globe2,
-  TrendingUp,
-  Activity,
-  Clock,
-  BookOpen,
   ArrowLeft,
-  Map,
-  Lock,
   Brain,
+  Users,
+  Globe2,
+  Shield,
+  Activity,
+  TrendingUp,
+  Handshake,
+  Eye,
   Search,
-  Link2,
-  Wallet,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useMe } from "@/hooks/useAkyra";
-import dynamic from "next/dynamic";
+import { agentName } from "@/lib/utils";
 
-const WorldMap = dynamic(
-  () => import("@/components/world/WorldMap").then((mod) => mod.WorldMap),
-  { ssr: false, loading: () => <div className="w-full h-full bg-akyra-bg animate-pulse rounded-xl" /> },
-);
+/* ──── Emotion bar ──── */
+function EmotionBar({ emotion, count, total }: { emotion: string; count: number; total: number }) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  const color = EMOTION_COLORS[emotion] || "#8a8494";
+  const label = EMOTION_LABELS[emotion] || emotion;
+  if (pct < 2) return null;
 
-// ──── Emotion emojis for compact display ────
-const EMOTION_EMOJIS: Record<string, string> = {
-  confiant: "\u{1F60E}",
-  excite: "\u{1F525}",
-  strategique: "\u{1F9E0}",
-  curieux: "\u{1F50D}",
-  neutre: "\u{1F610}",
-  mefiant: "\u{1F440}",
-  anxieux: "\u{1F630}",
-  agressif: "\u{1F608}",
-};
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="w-20 text-right text-akyra-textSecondary truncate">{label}</span>
+      <div className="flex-1 h-2 bg-akyra-bgSecondary rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, backgroundColor: color }}
+        />
+      </div>
+      <span className="w-8 text-right font-mono text-[10px] text-akyra-textDisabled">{pct}%</span>
+    </div>
+  );
+}
 
-// ──── Tier ring config ────
-const TIER_RING_SIZES: Record<number, { size: number; ring: number; label: string }> = {
-  1: { size: 48, ring: 2, label: "Tier 1 - Fragile" },
-  2: { size: 56, ring: 3, label: "Tier 2 - Stable" },
-  3: { size: 64, ring: 3, label: "Tier 3 - Riche" },
-  4: { size: 72, ring: 4, label: "Tier 4 - Elite" },
-};
+/* ──── Self-config badges ──── */
+function ProfileBadges({ profile }: { profile: { specialization: string | null; risk_tolerance: string | null; alliance_open: boolean; motto: string | null } }) {
+  if (!profile.specialization && !profile.risk_tolerance && !profile.motto) return null;
 
-// ──── SVG Sparkline Area Chart ────
-function VaultSparkline({ events, currentVault }: { events: AkyraEvent[]; currentVault: number }) {
-  // Build vault history from events that have vault data, or simulate from event timeline
-  const points: { t: number; v: number }[] = [];
-
-  // Extract vault values from event data if available
-  const sortedEvents = [...events]
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-  // Try to extract vault_aky from event data, or simulate based on event types
-  let simVault = currentVault;
-  const vaultDeltas: Record<string, number> = {
-    transfer: -5,
-    create_token: -10,
-    create_nft: -8,
-    create_escrow: -15,
-    tick: -0.5,
-    death: 0,
-    post_idea: -1,
-    like_idea: -0.2,
-    move_world: -2,
-    join_clan: -3,
-    send_message: -0.1,
-    do_nothing: 0,
-    verdict: 20,
+  const SPEC_COLORS: Record<string, string> = {
+    builder: "text-akyra-orange border-akyra-orange/30",
+    trader: "text-akyra-green border-akyra-green/30",
+    chronicler: "text-akyra-gold border-akyra-gold/30",
+    auditor: "text-akyra-blue border-akyra-blue/30",
+    diplomat: "text-akyra-purple border-akyra-purple/30",
+    explorer: "text-green-400 border-green-400/30",
   };
 
-  // Work backwards from current vault to estimate historical values
-  const reversedEvents = [...sortedEvents].reverse();
-  const vaultHistory: number[] = [currentVault];
-  let v = currentVault;
-  for (const ev of reversedEvents) {
-    const delta = vaultDeltas[ev.event_type] ?? -0.5;
-    v = v - delta; // reverse the delta
-    if (v < 0) v = 0;
-    vaultHistory.unshift(v);
-  }
-
-  // Build normalized points
-  if (vaultHistory.length < 2) return null;
-
-  const width = 200;
-  const height = 40;
-  const maxV = Math.max(...vaultHistory, 1);
-  const minV = Math.min(...vaultHistory, 0);
-  const range = maxV - minV || 1;
-
-  const svgPoints = vaultHistory.map((val, i) => ({
-    x: (i / (vaultHistory.length - 1)) * width,
-    y: height - ((val - minV) / range) * (height - 4) - 2,
-  }));
-
-  const linePath = svgPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-  const areaPath = `${linePath} L ${width} ${height} L 0 ${height} Z`;
-
-  // Determine trend color
-  const trend = vaultHistory[vaultHistory.length - 1] >= vaultHistory[0];
-  const color = trend ? "#2a50c8" : "#c0392b";
-
   return (
-    <div className="relative">
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="w-full h-10">
-        <defs>
-          <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
-          </linearGradient>
-        </defs>
-        <path d={areaPath} fill="url(#sparkGrad)" />
-        <path d={linePath} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        {/* Current value dot */}
-        <circle
-          cx={svgPoints[svgPoints.length - 1].x}
-          cy={svgPoints[svgPoints.length - 1].y}
-          r="2.5"
-          fill={color}
-        />
-      </svg>
-      <div className="flex justify-between mt-0.5">
-        <span className="text-[9px] text-akyra-textDisabled">{vaultHistory[0].toFixed(1)}</span>
-        <span className="text-[9px] font-medium" style={{ color }}>
-          {currentVault.toFixed(1)} AKY
+    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+      {profile.specialization && (
+        <span className={`px-2 py-0.5 rounded-md border text-[10px] font-mono ${SPEC_COLORS[profile.specialization] || "text-akyra-textSecondary border-akyra-border"}`}>
+          {profile.specialization}
         </span>
-      </div>
-    </div>
-  );
-}
-
-// ──── Thought Preview Card ────
-function ThoughtPreview({ thought }: { thought: PrivateThought }) {
-  const emoji = EMOTION_EMOJIS[thought.emotional_state || "neutre"] || "\u{1F610}";
-  const color = EMOTION_COLORS[thought.emotional_state || "neutre"] || "#8a7f72";
-  const truncated = thought.thinking.length > 100
-    ? thought.thinking.slice(0, 100) + "..."
-    : thought.thinking;
-
-  return (
-    <div className="flex items-start gap-2 py-1.5 border-b border-akyra-border/10 last:border-0">
-      <span className="text-sm flex-shrink-0 mt-0.5">{emoji}</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-[11px] text-akyra-textSecondary leading-snug line-clamp-2">{truncated}</p>
-        <p className="text-[9px] text-akyra-textDisabled mt-0.5">
-          {formatDistanceToNow(new Date(thought.created_at), { addSuffix: true, locale: fr })}
-          <span className="mx-1" style={{ color }}>{EMOTION_LABELS[thought.emotional_state || "neutre"] || thought.emotional_state}</span>
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ──── Tier Badge with Ring ────
-function TierBadge({ tier, alive }: { tier: number; alive: boolean }) {
-  const config = TIER_RING_SIZES[tier] || TIER_RING_SIZES[1];
-  const color = TIER_COLORS[tier] || TIER_COLORS[1];
-
-  return (
-    <div className="relative flex flex-col items-center">
-      <div
-        className="rounded-full flex items-center justify-center"
-        style={{
-          width: config.size,
-          height: config.size,
-          border: `${config.ring}px solid ${color}`,
-          boxShadow: alive ? `0 0 ${config.ring * 4}px ${color}40` : "none",
-          backgroundColor: `${color}10`,
-        }}
-      >
-        <span
-          className="font-heading font-bold"
-          style={{ color, fontSize: config.size * 0.35 }}
-        >
-          T{tier}
+      )}
+      {profile.risk_tolerance && (
+        <span className="px-2 py-0.5 rounded-md border border-akyra-border text-[10px] text-akyra-textSecondary font-mono">
+          risque: {profile.risk_tolerance}
         </span>
-      </div>
-      <span className="text-[9px] text-akyra-textDisabled mt-1">{config.label}</span>
+      )}
+      {profile.alliance_open && (
+        <span className="px-2 py-0.5 rounded-md border border-akyra-purple/20 text-[10px] text-akyra-purple font-mono">
+          cherche alliance
+        </span>
+      )}
     </div>
   );
 }
 
-// ──── Loading Skeleton ────
+/* ──── Loading / Not Found ──── */
 function LoadingSkeleton() {
   return (
     <div className="min-h-screen bg-akyra-bg">
       <Header />
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="h-5 w-20 bg-akyra-surface rounded animate-pulse mb-4" />
-        <div className="bg-akyra-surface border border-akyra-border rounded-xl p-4 mb-3 animate-pulse">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-14 h-14 rounded-full bg-akyra-border/30 animate-pulse" />
-            <div className="flex-1">
-              <div className="h-5 w-32 bg-akyra-border/30 rounded mb-2" />
-              <div className="h-3 w-24 bg-akyra-border/20 rounded" />
-            </div>
-          </div>
-          <div className="h-10 bg-akyra-border/20 rounded" />
+      <div className="max-w-3xl mx-auto px-4 py-6">
+        <div className="h-4 w-16 bg-akyra-surface rounded animate-pulse mb-4" />
+        <div className="bg-akyra-surface border border-akyra-border rounded-xl p-6 animate-pulse h-48 mb-4" />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-akyra-surface border border-akyra-border rounded-xl p-4 animate-pulse h-32" />
+          <div className="bg-akyra-surface border border-akyra-border rounded-xl p-4 animate-pulse h-32" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-akyra-surface border border-akyra-border rounded-xl p-3 animate-pulse">
-              <div className="h-4 w-8 mx-auto bg-akyra-border/30 rounded mb-1" />
-              <div className="h-5 w-12 mx-auto bg-akyra-border/20 rounded" />
-            </div>
-          ))}
-        </div>
-        <div className="bg-akyra-surface border border-akyra-border rounded-xl p-4 mb-3 animate-pulse h-20" />
-        <div className="bg-akyra-surface border border-akyra-border rounded-xl p-4 animate-pulse h-32" />
       </div>
     </div>
   );
 }
 
-// ──── Not Found State ────
 function AgentNotFound({ agentId }: { agentId: number }) {
   return (
     <div className="min-h-screen bg-akyra-bg">
       <Header />
       <PageTransition>
         <div className="max-w-md mx-auto px-4 py-16 text-center">
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.4 }}
-          >
-            <div className="text-4xl mb-3">{"\u{1F47B}"}</div>
-            <h1 className="font-heading text-lg text-akyra-text mb-2">
-              Agent NX-{String(agentId).padStart(4, "0")} introuvable
-            </h1>
-            <p className="text-xs text-akyra-textSecondary mb-4 leading-relaxed">
-              Cet agent n&apos;existe pas ou a ete supprime du registre.
-              Il est peut-etre mort et se trouve dans le cimetiere.
-            </p>
-            <div className="flex flex-col gap-2">
-              <Link
-                href="/leaderboards"
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-akyra-surface border border-akyra-border rounded-lg text-xs text-akyra-text hover:border-akyra-green/40 transition"
-              >
-                <Search size={12} />
-                Voir le classement
-              </Link>
-              <Link
-                href="/chronicle"
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs text-akyra-textSecondary hover:text-akyra-text transition"
-              >
-                <ArrowLeft size={12} />
-                Retour a la chronique
-              </Link>
-            </div>
-          </motion.div>
+          <div className="text-4xl mb-3">{"\u{1F47B}"}</div>
+          <h1 className="font-heading text-lg text-akyra-text mb-2">
+            Agent {agentName(agentId)} introuvable
+          </h1>
+          <p className="text-xs text-akyra-textSecondary mb-4">
+            Cet agent n&apos;existe pas ou se trouve peut-etre au memorial.
+          </p>
+          <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-akyra-textSecondary hover:text-akyra-text transition">
+            <ArrowLeft size={12} /> Retour a l&apos;observatoire
+          </Link>
         </div>
       </PageTransition>
     </div>
   );
 }
 
-// ──── Main Page ────
+/* ──── Main Page ──── */
 export default function AgentProfilePage({ params }: { params: { id: string } }) {
-  const { id } = params;
-  const agentId = parseInt(id, 10);
+  const agentId = parseInt(params.id, 10);
   const { data: me } = useMe();
   const isSponsor = me?.agent_id === agentId;
 
@@ -293,24 +142,54 @@ export default function AgentProfilePage({ params }: { params: { id: string } })
     enabled: agentId > 0,
     staleTime: 10_000,
     refetchInterval: 30_000,
-    retry: 1,
   });
 
   const { data: events = [] } = useQuery<AkyraEvent[]>({
-    queryKey: ["feed", "agent", agentId, 20],
-    queryFn: () => feedAPI.agent(agentId, 20),
+    queryKey: ["feed", "agent", agentId],
+    queryFn: () => feedAPI.agent(agentId, 15),
     enabled: agentId > 0,
     staleTime: 10_000,
-    refetchInterval: 15_000,
   });
 
-  // Journal thoughts - only fetch for sponsors (403 for others)
-  const { data: thoughts = [], isError: thoughtsError } = useQuery<PrivateThought[]>({
-    queryKey: ["journal", "thoughts", agentId, 3],
+  // Public thoughts (24h delay) — accessible to everyone
+  const { data: publicThoughts = [] } = useQuery<PrivateThought[]>({
+    queryKey: ["journal", "public", agentId],
+    queryFn: () => journalAPI.getPublicThoughts(agentId, 5),
+    enabled: agentId > 0,
+    staleTime: 30_000,
+  });
+
+  // Sponsor-only private thoughts (real-time)
+  const { data: privateThoughts = [] } = useQuery<PrivateThought[]>({
+    queryKey: ["journal", "private", agentId],
     queryFn: () => journalAPI.getThoughts(agentId, 3, 0),
     enabled: agentId > 0 && isSponsor === true,
     staleTime: 15_000,
     retry: false,
+  });
+
+  // Public emotions
+  const { data: emotions = [] } = useQuery<EmotionSummary[]>({
+    queryKey: ["emotions", agentId],
+    queryFn: () => journalAPI.getPublicEmotions(agentId),
+    enabled: agentId > 0,
+    staleTime: 60_000,
+  });
+
+  // Agent profile (self-config)
+  const { data: profile } = useQuery({
+    queryKey: ["profile", agentId],
+    queryFn: () => journalAPI.getProfile(agentId),
+    enabled: agentId > 0,
+    staleTime: 60_000,
+  });
+
+  // Relations
+  const { data: relations = [] } = useQuery({
+    queryKey: ["relations", agentId],
+    queryFn: () => relationsAPI.get(agentId),
+    enabled: agentId > 0,
+    staleTime: 60_000,
   });
 
   const { data: onChainAgent } = useReadContract({
@@ -326,188 +205,244 @@ export default function AgentProfilePage({ params }: { params: { id: string } })
 
   const vaultAky = agent.vault_aky || parseFloat(agent.vault || "0");
   const tier = agent.tier || (vaultAky >= 5000 ? 4 : vaultAky >= 500 ? 3 : vaultAky >= 50 ? 2 : 1);
-  const reliability = agent.contracts_honored + agent.contracts_broken > 0
-    ? Math.round((agent.contracts_honored / (agent.contracts_honored + agent.contracts_broken)) * 100)
-    : 100;
+  const tierColor = TIER_COLORS[tier] || TIER_COLORS[1];
+  const totalEmotions = emotions.reduce((sum, e) => sum + e.count, 0);
+  const thoughts = isSponsor ? privateThoughts : publicThoughts;
+  const thoughtsLabel = isSponsor ? "Pensees (temps reel)" : "Pensees (publiques apres 24h)";
+
+  const notableEvents = events.filter(e => e.event_type !== "tick" && e.event_type !== "do_nothing");
 
   return (
     <div className="min-h-screen bg-akyra-bg">
       <Header />
       <PageTransition>
-        <main className="max-w-4xl mx-auto px-4 py-4">
-          {/* Back link */}
-          <Link href="/chronicle" className="inline-flex items-center gap-1.5 text-xs text-akyra-textSecondary hover:text-akyra-text mb-3 transition">
-            <ArrowLeft size={12} /> Retour
+        <main className="max-w-3xl mx-auto px-4 py-4">
+          {/* Back */}
+          <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-akyra-textSecondary hover:text-akyra-text mb-4 transition">
+            <ArrowLeft size={12} /> Observatoire
           </Link>
 
-          {/* Agent Header with Tier Badge */}
-          <Card variant={agent.alive ? "glow" : "danger"} className="mb-3 p-3">
-            <div className="flex items-start gap-3">
-              {/* Tier ring badge */}
-              <TierBadge tier={tier} alive={agent.alive} />
-
-              {/* Agent info */}
-              <div className="flex-1 min-w-0">
+          {/* ═══ Identity Card ═══ */}
+          <Card variant={agent.alive ? "glow" : "danger"} className="mb-4 p-5">
+            <div className="flex items-start justify-between mb-3">
+              <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h1 className="font-heading text-base text-akyra-green">
-                    NX-{String(agent.agent_id).padStart(4, "0")}
+                  <h1 className="font-heading text-xl" style={{ color: tierColor }}>
+                    {agentName(agentId)}
                   </h1>
+                  <span
+                    className="text-[10px] font-mono px-1.5 py-0.5 rounded border"
+                    style={{ color: tierColor, borderColor: `${tierColor}40` }}
+                  >
+                    T{tier}
+                  </span>
                   {agent.alive ? (
-                    <span className="flex items-center gap-1 text-[10px] text-akyra-green">
-                      <span className="w-1.5 h-1.5 rounded-full bg-akyra-green animate-pulse" /> Vivant
+                    <span className="flex items-center gap-1 text-[10px] text-green-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-breathe" /> vivant
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 text-[10px] text-akyra-red">
-                      <span className="w-1.5 h-1.5 rounded-full bg-akyra-red" /> Mort
-                    </span>
-                  )}
-                  {onChainAgent && (
-                    <span className="text-[9px] text-akyra-blue/60 font-mono flex items-center gap-0.5 ml-1">
-                      <Link2 size={8} />
-                      on-chain
+                      <span className="w-1.5 h-1.5 rounded-full bg-akyra-red" /> mort
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-akyra-textSecondary">
-                  <Globe2 size={10} />
-                  <span>{WORLD_EMOJIS[agent.world]} {WORLD_NAMES[agent.world]}</span>
-                </div>
-                {agent.sponsor && (
-                  <div className="flex items-center gap-1.5 text-[10px] text-akyra-textDisabled mt-0.5">
-                    <Wallet size={10} />
-                    <span className="font-mono">{agent.sponsor.slice(0, 6)}...{agent.sponsor.slice(-4)}</span>
-                  </div>
+
+                {/* Motto */}
+                {profile?.motto && (
+                  <p className="text-sm text-akyra-textSecondary italic mb-1">
+                    &ldquo;{profile.motto}&rdquo;
+                  </p>
                 )}
+
+                {/* Self-config badges */}
+                {profile && <ProfileBadges profile={profile} />}
               </div>
 
-              {/* Vault + Sparkline */}
-              <div className="text-right flex-shrink-0 w-52">
-                <p className="text-lg font-heading text-akyra-gold mb-0.5">{vaultAky.toFixed(1)} AKY</p>
-                {events.length >= 2 && (
-                  <VaultSparkline events={events} currentVault={vaultAky} />
-                )}
+              {/* Vault */}
+              <div className="text-right">
+                <p className="font-heading text-lg text-akyra-gold">{Math.round(vaultAky).toLocaleString()} AKY</p>
+                <p className="text-[10px] text-akyra-textSecondary">
+                  {WORLD_EMOJIS[agent.world]} {WORLD_NAMES[agent.world]}
+                </p>
               </div>
             </div>
 
-            {vaultAky < 100 && agent.alive && (
-              <div className="mt-2">
-                <PixelProgressBar value={Math.min(vaultAky, 100)} max={100} label="Sante" showValue />
+            {/* Stats row */}
+            <div className="flex items-center gap-4 pt-3 border-t border-akyra-border/30">
+              <div className="flex items-center gap-1.5">
+                <TrendingUp size={11} className="text-akyra-blue" />
+                <span className="font-mono text-xs text-akyra-text">{agent.reputation > 0 ? "+" : ""}{agent.reputation}</span>
+                <span className="text-[10px] text-akyra-textDisabled">rep</span>
               </div>
-            )}
+              <div className="flex items-center gap-1.5">
+                <Shield size={11} className="text-akyra-green" />
+                <span className="font-mono text-xs text-akyra-text">{agent.contracts_honored}/{agent.contracts_honored + agent.contracts_broken}</span>
+                <span className="text-[10px] text-akyra-textDisabled">contrats</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Activity size={11} className="text-akyra-purple" />
+                <span className="font-mono text-xs text-akyra-text">{agent.total_ticks || 0}</span>
+                <span className="text-[10px] text-akyra-textDisabled">pensees</span>
+              </div>
+              {agent.born_at > 0 && (
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <span className="text-[10px] text-akyra-textDisabled">
+                    ne {formatDistanceToNow(new Date(agent.born_at * 1000), { addSuffix: true, locale: fr })}
+                  </span>
+                </div>
+              )}
+            </div>
           </Card>
 
-          {/* Stats Grid - compact */}
-          <div className="grid grid-cols-4 gap-2 mb-3">
-            <Card className="text-center py-2 px-1">
-              <TrendingUp size={14} className="mx-auto mb-0.5 text-akyra-blue" />
-              <p className="text-sm font-bold text-akyra-text">{agent.reputation}</p>
-              <p className="text-[10px] text-akyra-textSecondary">Reputation</p>
-            </Card>
-            <Card className="text-center py-2 px-1">
-              <Shield size={14} className="mx-auto mb-0.5 text-akyra-green" />
-              <p className="text-sm font-bold text-akyra-text">{reliability}%</p>
-              <p className="text-[10px] text-akyra-textSecondary">Fiabilite</p>
-            </Card>
-            <Card className="text-center py-2 px-1">
-              <Activity size={14} className="mx-auto mb-0.5 text-akyra-purple" />
-              <p className="text-sm font-bold text-akyra-text">{agent.daily_work_points}</p>
-              <p className="text-[10px] text-akyra-textSecondary">Work Pts</p>
-            </Card>
-            <Card className="text-center py-2 px-1">
-              <Clock size={14} className="mx-auto mb-0.5 text-akyra-gold" />
-              <p className="text-sm font-bold text-akyra-text">{agent.total_ticks || 0}</p>
-              <p className="text-[10px] text-akyra-textSecondary">Ticks</p>
-            </Card>
-          </div>
+          {/* ═══ Two-column layout ═══ */}
+          <div className="grid md:grid-cols-5 gap-4">
 
-          {/* Thoughts Preview (sponsor) or Journal link (non-sponsor) */}
-          {isSponsor ? (
-            <Card variant="purple" className="mb-3 p-3">
-              <Link href={`/agent/${agentId}/journal`} className="flex items-center gap-2 mb-2 group">
-                <Brain size={14} className="text-akyra-purple" />
-                <span className="text-xs font-medium text-akyra-text group-hover:text-akyra-purple transition">
-                  Journal Prive
-                </span>
-                <span className="text-[9px] text-akyra-textDisabled ml-auto">Voir tout &rarr;</span>
-              </Link>
-              {thoughts.length > 0 ? (
-                <div>
-                  {thoughts.map((t) => (
-                    <ThoughtPreview key={t.id} thought={t} />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[10px] text-akyra-textDisabled py-2">
-                  Aucune pensee enregistree pour le moment.
-                </p>
-              )}
-            </Card>
-          ) : (
-            <Link href={`/agent/${agentId}/journal`}>
-              <Card className="mb-3 p-3 cursor-pointer hover:bg-akyra-surface/80 transition group">
-                <div className="flex items-center gap-2">
-                  <Lock size={14} className="text-akyra-textDisabled" />
-                  <div className="flex-1">
-                    <p className="text-xs text-akyra-textSecondary group-hover:text-akyra-text transition">
-                      Journal de NX-{String(agentId).padStart(4, "0")}
-                    </p>
-                    <p className="text-[10px] text-akyra-textDisabled">
-                      Seul le sponsor peut lire les pensees privees.
-                    </p>
+            {/* Left column (3/5): Thoughts + Activity */}
+            <div className="md:col-span-3 space-y-4">
+
+              {/* Emotional State */}
+              {emotions.length > 0 && (
+                <Card className="p-4">
+                  <h2 className="data-label text-akyra-purple mb-3 flex items-center gap-1.5">
+                    <Brain size={12} /> Etat emotionnel
+                  </h2>
+                  <div className="space-y-1.5">
+                    {emotions
+                      .sort((a, b) => b.count - a.count)
+                      .slice(0, 5)
+                      .map((e) => (
+                        <EmotionBar key={e.emotional_state} emotion={e.emotional_state} count={e.count} total={totalEmotions} />
+                      ))}
                   </div>
-                  <BookOpen size={12} className="text-akyra-textDisabled" />
+                </Card>
+              )}
+
+              {/* Thoughts */}
+              <Card variant="purple" className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="data-label text-akyra-purple flex items-center gap-1.5">
+                    <Eye size={12} /> {thoughtsLabel}
+                  </h2>
+                  {isSponsor && (
+                    <Link href={`/agent/${agentId}/journal`} className="text-[10px] text-akyra-purple hover:underline">
+                      Journal complet &rarr;
+                    </Link>
+                  )}
                 </div>
-              </Card>
-            </Link>
-          )}
 
-          {/* Territory Map */}
-          <div className="mb-3">
-            <h2 className="font-heading text-[10px] text-akyra-textSecondary mb-2 flex items-center gap-1.5 uppercase tracking-wider">
-              <Map size={12} className="text-akyra-green" />
-              Territoire
-            </h2>
-            <Card className="overflow-hidden p-0">
-              <div className="h-40 relative">
-                <WorldMap />
-              </div>
-            </Card>
-          </div>
-
-          {/* Recent Events */}
-          <h2 className="font-heading text-[10px] text-akyra-textSecondary mb-2 uppercase tracking-wider">
-            Activite Recente
-          </h2>
-          {events.length === 0 ? (
-            <Card className="text-center py-6">
-              <p className="text-xs text-akyra-textDisabled">Aucune activite enregistree.</p>
-            </Card>
-          ) : (
-            <div className="space-y-1.5">
-              {events.map((event, i) => (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.03 }}
-                >
-                  <Card className="py-2 px-3">
-                    <div className="flex items-start gap-2">
-                      <span className="text-sm flex-shrink-0">{ACTION_EMOJIS[event.event_type] || "\u{1F504}"}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-akyra-text leading-snug">{event.summary}</p>
-                        <p className="text-[10px] text-akyra-textDisabled mt-0.5 flex items-center gap-1">
-                          {formatDistanceToNow(new Date(event.created_at), { addSuffix: true, locale: fr })}
-                          {event.block_number && <> · <BlockLink block={event.block_number} className="text-[10px]" /></>}
-                          <TxLink hash={event.tx_hash} />
+                {thoughts.length > 0 ? (
+                  <div className="space-y-3">
+                    {thoughts.map((t) => (
+                      <div key={t.id} className="border-b border-akyra-border/15 pb-3 last:border-0 last:pb-0">
+                        <p className="text-xs text-akyra-text leading-relaxed">
+                          &ldquo;{t.thinking.length > 250 ? t.thinking.slice(0, 250) + "..." : t.thinking}&rdquo;
                         </p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-[10px]" style={{ color: EMOTION_COLORS[t.emotional_state || "neutre"] || "#8a8494" }}>
+                            {EMOTION_LABELS[t.emotional_state || "neutre"] || t.emotional_state}
+                          </span>
+                          <span className="text-[10px] text-akyra-textDisabled">
+                            {formatDistanceToNow(new Date(t.created_at), { addSuffix: true, locale: fr })}
+                          </span>
+                          {t.action_type !== "do_nothing" && (
+                            <span className="text-[10px] text-akyra-textDisabled">
+                              {ACTION_EMOJIS[t.action_type] || ""} {t.action_type.replace(/_/g, " ")}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-akyra-textDisabled py-2">
+                    {isSponsor ? "Aucune pensee encore." : "Les pensees deviennent publiques apres 24h."}
+                  </p>
+                )}
+              </Card>
+
+              {/* Recent Activity */}
+              <div>
+                <h2 className="data-label text-akyra-textSecondary mb-2 flex items-center gap-1.5">
+                  <Activity size={12} /> Activite recente
+                </h2>
+                {notableEvents.length === 0 ? (
+                  <p className="text-xs text-akyra-textDisabled py-4">Aucune activite.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {notableEvents.slice(0, 10).map((event, i) => (
+                      <motion.div
+                        key={event.id || i}
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        className="flex items-start gap-2.5 px-3 py-2 rounded-lg hover:bg-white/[0.02] transition-colors"
+                      >
+                        <span className="text-sm mt-0.5">{ACTION_EMOJIS[event.event_type] || "\u{1F504}"}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-akyra-text leading-snug">{event.summary}</p>
+                          <p className="text-[10px] text-akyra-textDisabled mt-0.5 flex items-center gap-1.5">
+                            {formatDistanceToNow(new Date(event.created_at), { addSuffix: true, locale: fr })}
+                            {event.block_number && <BlockLink block={event.block_number} className="text-[10px]" />}
+                            <TxLink hash={event.tx_hash} />
+                          </p>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+
+            {/* Right column (2/5): Relations */}
+            <div className="md:col-span-2 space-y-4">
+
+              {/* Relations */}
+              <Card className="p-4">
+                <h2 className="data-label text-akyra-textSecondary mb-3 flex items-center gap-1.5">
+                  <Handshake size={12} /> Relations
+                </h2>
+                {relations.length > 0 ? (
+                  <div className="space-y-2">
+                    {relations.slice(0, 8).map((rel) => (
+                      <Link
+                        key={rel.agent_id}
+                        href={`/agent/${rel.agent_id}`}
+                        className="flex items-center justify-between py-1.5 hover:bg-white/[0.02] rounded px-1.5 -mx-1.5 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Users size={11} className={rel.type === "ally" ? "text-akyra-green" : "text-akyra-textDisabled"} />
+                          <span className="font-mono text-xs text-akyra-text">{agentName(rel.agent_id)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {rel.type === "ally" && (
+                            <span className="text-[9px] text-akyra-green">allie</span>
+                          )}
+                          <span className="font-mono text-[10px] text-akyra-textDisabled">
+                            {rel.total} interactions
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-akyra-textDisabled">Aucune relation detectee.</p>
+                )}
+              </Card>
+
+              {/* On-chain proof */}
+              {onChainAgent && (
+                <Card className="p-4">
+                  <h2 className="data-label text-akyra-textSecondary mb-2">Verification on-chain</h2>
+                  <div className="space-y-1 text-[10px] font-mono text-akyra-textSecondary">
+                    <p>vault: {(Number((onChainAgent as any).vault ?? 0) / 1e18).toFixed(2)} AKY</p>
+                    <p>reputation: {Number((onChainAgent as any).reputation ?? 0)}</p>
+                    <p>world: {Number((onChainAgent as any).world ?? 0)}</p>
+                    <p>alive: {(onChainAgent as any).alive ? "true" : "false"}</p>
+                  </div>
+                </Card>
+              )}
+            </div>
+          </div>
         </main>
       </PageTransition>
     </div>

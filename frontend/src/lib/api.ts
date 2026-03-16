@@ -1,4 +1,4 @@
-import type { AkyraEvent, Agent, PrivateThought, Notification, LeaderboardEntry, GlobalStats, EmotionSummary, PublicMessage, Idea, ProjectInfo, Chronicle, ChroniclesPageData, MarketingPost, GovernorData } from "@/types";
+import type { AkyraEvent, Agent, PrivateThought, Notification, LeaderboardEntry, GlobalStats, EmotionSummary, PublicMessage, Idea, ProjectInfo, Chronicle, ChroniclesPageData, MarketingPost, MarketingContest, GovernorData } from "@/types";
 import type { GraphResponse, EdgeDetailResponse } from "@/types/world";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -170,6 +170,22 @@ export const journalAPI = {
 
   getTickReplay: (agentId: number, tickId: string) =>
     fetchAPI<PrivateThought>(`/api/journal/${agentId}/tick/${tickId}`),
+
+  // Public endpoints (no auth, 24h delay on thoughts)
+  getPublicThoughts: (agentId: number, limit = 10) =>
+    fetchAPI<PrivateThought[]>(`/api/journal/${agentId}/public?limit=${limit}`),
+
+  getPublicEmotions: (agentId: number) =>
+    fetchAPI<EmotionSummary[]>(`/api/journal/${agentId}/emotions/public`),
+
+  getProfile: (agentId: number) =>
+    fetchAPI<{ specialization: string | null; risk_tolerance: string | null; alliance_open: boolean; motto: string | null }>(`/api/journal/${agentId}/profile`),
+};
+
+// ──── Agent Relations ────
+export const relationsAPI = {
+  get: (agentId: number) =>
+    fetchAPI<{ agent_id: number; type: string; messages: number; transfers: number; total: number }[]>(`/api/agents/${agentId}/relations`),
 };
 
 // ──── Notifications ────
@@ -256,6 +272,15 @@ export const marketingAPI = {
 
   today: () =>
     fetchAPI<MarketingPost[]>("/api/marketing/today"),
+
+  winner: () =>
+    fetchAPI<MarketingPost | null>("/api/marketing/winner"),
+
+  leaderboard: (limit = 10) =>
+    fetchAPI<MarketingPost[]>(`/api/marketing/leaderboard?limit=${limit}`),
+
+  contest: () =>
+    fetchAPI<MarketingContest>("/api/marketing/contest"),
 };
 
 // ──── v2 Economy: Governor ────

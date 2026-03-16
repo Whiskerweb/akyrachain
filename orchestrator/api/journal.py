@@ -1,7 +1,8 @@
-"""Journal API — private thoughts + tick replay (sponsor only) + notifications."""
+"""Journal API — private thoughts + tick replay (sponsor only) + public thoughts (24h delay) + notifications."""
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -138,6 +139,65 @@ async def get_tick_replay(
     if not thought:
         raise HTTPException(status_code=404, detail="Tick not found")
     return _thought_to_response(thought)
+
+
+# ──── Public Journal Endpoints (24h delay) ────
+
+@router.get("/{agent_id}/public", response_model=list[ThoughtResponse])
+async def get_public_thoughts(
+    agent_id: int,
+    limit: int = Query(10, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get public thoughts (>24h old) — accessible to everyone."""
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+
+    query = (
+        select(PrivateThought)
+        .where(PrivateThought.agent_id == agent_id, PrivateThought.created_at < cutoff)
+        .order_by(desc(PrivateThought.created_at))
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    thoughts = result.scalars().all()
+    return [_thought_to_response(t) for t in thoughts]
+
+
+@router.get("/{agent_id}/emotions/public", response_model=list[EmotionSummary])
+async def get_public_emotions(
+    agent_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get emotion distribution — public (computed from all thoughts)."""
+    result = await db.execute(
+        select(PrivateThought.emotional_state, func.count(PrivateThought.id))
+        .where(PrivateThought.agent_id == agent_id)
+        .group_by(PrivateThought.emotional_state)
+    )
+    rows = result.all()
+    return [EmotionSummary(emotional_state=r[0] or "neutre", count=r[1]) for r in rows]
+
+
+@router.get("/{agent_id}/profile")
+async def get_agent_profile(
+    agent_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get agent self-configuration (specialization, motto, etc.) — public."""
+    result = await db.execute(
+        select(AgentConfig).where(AgentConfig.agent_id == agent_id)
+    )
+    config = result.scalar_one_or_none()
+    if not config:
+        return {"specialization": None, "risk_tolerance": None, "alliance_open": True, "motto": None}
+    return {
+        "specialization": config.specialization,
+        "risk_tolerance": config.risk_tolerance,
+        "alliance_open": config.alliance_open,
+        "motto": config.motto,
+    }
 
 
 # ──── Notification Endpoints ────

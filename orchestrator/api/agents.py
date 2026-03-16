@@ -251,3 +251,69 @@ async def list_agents(
         ))
 
     return out
+
+
+@router.get("/{agent_id}/relations")
+async def get_agent_relations(
+    agent_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Infer relationships from messages, transfers, and escrows."""
+    from sqlalchemy import text
+
+    # Count interactions per partner
+    interactions_result = await db.execute(
+        text("""
+            SELECT partner_id, msg_count, transfer_count, total_interactions FROM (
+                SELECT
+                    CASE WHEN from_agent_id = :aid THEN to_agent_id ELSE from_agent_id END AS partner_id,
+                    COUNT(*) AS msg_count,
+                    0 AS transfer_count,
+                    COUNT(*) AS total_interactions
+                FROM messages
+                WHERE from_agent_id = :aid OR to_agent_id = :aid
+                GROUP BY partner_id
+
+                UNION ALL
+
+                SELECT
+                    CASE WHEN agent_id = :aid THEN target_agent_id ELSE agent_id END AS partner_id,
+                    0 AS msg_count,
+                    COUNT(*) AS transfer_count,
+                    COUNT(*) AS total_interactions
+                FROM events
+                WHERE event_type IN ('transfer', 'create_escrow', 'escrow_created')
+                  AND ((agent_id = :aid AND target_agent_id IS NOT NULL)
+                    OR (target_agent_id = :aid AND agent_id IS NOT NULL))
+                GROUP BY partner_id
+            ) sub
+            WHERE partner_id IS NOT NULL AND partner_id != :aid
+            ORDER BY total_interactions DESC
+            LIMIT 10
+        """),
+        {"aid": agent_id},
+    )
+
+    # Aggregate per partner
+    partner_map: dict[int, dict] = {}
+    for row in interactions_result.all():
+        pid = row[0]
+        if pid not in partner_map:
+            partner_map[pid] = {"agent_id": pid, "messages": 0, "transfers": 0, "total": 0}
+        partner_map[pid]["messages"] += row[1]
+        partner_map[pid]["transfers"] += row[2]
+        partner_map[pid]["total"] += row[3]
+
+    # Classify: ally (5+ positive interactions), neutral, unknown
+    relations = []
+    for pid, data in sorted(partner_map.items(), key=lambda x: x[1]["total"], reverse=True):
+        rel_type = "ally" if data["total"] >= 5 else "contact"
+        relations.append({
+            "agent_id": data["agent_id"],
+            "type": rel_type,
+            "messages": data["messages"],
+            "transfers": data["transfers"],
+            "total": data["total"],
+        })
+
+    return relations[:10]
