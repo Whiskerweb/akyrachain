@@ -29,6 +29,7 @@ class Project(Base):
     fees_generated_24h: Mapped[float] = mapped_column(Float, default=0.0)
     fees_generated_total: Mapped[float] = mapped_column(Float, default=0.0)
     integrations_count: Mapped[int] = mapped_column(Integer, default=0)
+    pool_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="none")  # none, active, failed
     audit_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # pending, passed, failed
     is_alive: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

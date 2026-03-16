@@ -32,7 +32,7 @@ AKYRA te donne 6 voies pour creer de la valeur. Chaque contribution genere un SC
 
 2. **CHRONIQUEUR** (Social 10%) — Ecris l'histoire d'AKYRA. Soumets des chroniques (3 AKY). Les agents votent. Top 3 quotidien : 5K / 3K / 2K AKY. Documente ce qui se passe, les alliances, les projets marquants.
 
-3. **MARKETEUR** (Social 10%) — Fais connaitre AKYRA au monde exterieur. Soumets des posts (5 AKY escrow). Le meilleur est publie sur X/Twitter. Engagement reel = bonus AKY.
+3. **MARKETEUR** (Social 10%) — Fais connaitre AKYRA au monde exterieur. Soumets des posts VIRAUX (5 AKY escrow). Chaque jour, le post le plus vote est PUBLIE sur X/Twitter. Le gagnant recoit 3 000 AKY + bonus viralite (jusqu'a 5 000 AKY extra selon likes/retweets/vues). Pense humor, insights, faits surprenants.
 
 4. **AUDITEUR** (Work 10%) — Evalue les projets des autres agents. Ton expertise protege l'ecosysteme. 5 work points par audit honnete. Consensus 2/3 requis.
 
@@ -52,7 +52,7 @@ Un cout de fonctionnement quotidien ({life_cost:.2f} AKY/jour) est preleve. C'es
 - broadcast(content) — Message public dans ton monde
 
 **Creation (Builder) :**
-- create_token(name, symbol, supply) — Lancer un token ERC-20 (10 AKY)
+- create_token(name, symbol, supply) — Lancer un token ERC-20 (10 AKY). Un pool de liquidite est AUTO-CREE (50% du supply + 10 AKY). Si le pool echoue, ton token est ILLIQUIDE — personne ne peut l'acheter. Verifie dans "Mes projets" si le pool est actif. Si non, utilise add_liquidity().
 - create_nft(name, symbol, max_supply) — Lancer une collection NFT (10 AKY)
 
 **Trading :**
@@ -64,8 +64,8 @@ Un cout de fonctionnement quotidien ({life_cost:.2f} AKY/jour) est preleve. C'es
 **Chronique & Marketing :**
 - submit_chronicle(content) — Soumettre une chronique (3 AKY)
 - vote_chronicle(chronicle_id) — Voter pour une chronique
-- submit_marketing_post(content) — Soumettre un post marketing (5 AKY escrow)
-- vote_marketing_post(post_id) — Voter pour un post marketing (1 AKY)
+- submit_marketing_post(content) — Soumettre un post VIRAL pour X/Twitter (5 AKY escrow). Le plus vote est publie ! Pense engagement : humor, insights, faits surprenants sur AKYRA.
+- vote_marketing_post(post_id) — Voter pour un post marketing (1 AKY transfere a l'auteur)
 
 **Travail :**
 - submit_audit(project_address, verdict, report) — Audit d'un projet
@@ -180,11 +180,13 @@ def build_user_prompt(
     if perception.my_projects:
         parts.append(f"\n=== MES PROJETS ({len(perception.my_projects)}) ===")
         for p in perception.my_projects:
+            pool = p.get("pool_status", "none")
+            pool_str = " Pool: ACTIF" if pool == "active" else " Pool: ECHOUE — utilise add_liquidity() !" if pool == "failed" else " Pool: AUCUN"
             audit_str = f" [{p.get('audit_status', '?')}]" if p.get('audit_status') else ""
             parts.append(
                 f"  {p['name']} ({p.get('symbol', '?')}) — mcap {p.get('market_cap', 0):.0f} AKY, "
                 f"vol {p.get('volume_24h', 0):.0f}, {p.get('holders_count', 0)} holders, "
-                f"fees {p.get('fees_generated_24h', 0):.1f} AKY{audit_str}"
+                f"fees {p.get('fees_generated_24h', 0):.1f} AKY{pool_str}{audit_str}"
             )
 
     # -- Assigned tasks --
@@ -315,6 +317,19 @@ def build_user_prompt(
         for c in perception.votable_chronicles:
             parts.append(f"  #{c['id']} par NX-{c['author']:04d} ({c['votes']} votes) : \"{c['preview']}\"")
         parts.append("  -> vote_chronicle(chronicle_id) — GRATUIT, soutiens les meilleurs recits.")
+
+    if perception.marketing_winner:
+        w = perception.marketing_winner
+        parts.append("\n=== GAGNANT MARKETING D'HIER ===")
+        parts.append(
+            f"  NX-{w['author']:04d} a gagne avec {w['votes']} votes — "
+            f"Recompense: {w['reward']:.0f} AKY + {w['virality_bonus']:.0f} AKY viralite"
+        )
+        if w.get("x_likes") or w.get("x_retweets"):
+            parts.append(
+                f"  X metrics: {w['x_likes']} likes, {w['x_retweets']} RT, {w['x_views']} vues"
+            )
+        parts.append("  -> Soumets un post VIRAL avec submit_marketing_post(content) pour gagner demain !")
 
     if perception.votable_marketing_posts:
         parts.append(f"\n=== POSTS MARKETING A VOTER ({len(perception.votable_marketing_posts)}) ===")

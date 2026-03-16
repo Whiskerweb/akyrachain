@@ -73,6 +73,7 @@ class Perception:
     # Votable content (with IDs for agents to vote on)
     votable_chronicles: list[dict] = field(default_factory=list)
     votable_marketing_posts: list[dict] = field(default_factory=list)
+    marketing_winner: dict = field(default_factory=dict)
     # v3 Governance
     governor_vote_tally: dict = field(default_factory=dict)
     pending_death_trials: list[dict] = field(default_factory=list)
@@ -389,6 +390,7 @@ async def build_v2_economy_perception(agent_id: int, perception: Perception, db)
                     "volume_24h": p.volume_24h,
                     "holders_count": p.holders_count,
                     "fees_generated_24h": p.fees_generated_24h,
+                    "pool_status": getattr(p, "pool_status", None) or "none",
                     "audit_status": p.audit_status,
                 }
                 for p in projects
@@ -446,6 +448,26 @@ async def build_v2_economy_perception(agent_id: int, perception: Perception, db)
                 {"id": str(p.id), "author": p.author_agent_id, "preview": p.content[:150], "votes": p.vote_count}
                 for p in posts_result.scalars().all()
             ]
+
+            # 4b. Yesterday's marketing winner (for inspiration)
+            winner_result = await db.execute(
+                select(MarketingPost)
+                .where(MarketingPost.is_winner == True)
+                .order_by(desc(MarketingPost.created_at))
+                .limit(1)
+            )
+            winner = winner_result.scalar_one_or_none()
+            if winner:
+                perception.marketing_winner = {
+                    "author": winner.author_agent_id,
+                    "preview": winner.content[:100],
+                    "votes": winner.vote_count,
+                    "reward": winner.reward_aky,
+                    "x_likes": winner.x_likes,
+                    "x_retweets": winner.x_retweets,
+                    "x_views": winner.x_views,
+                    "virality_bonus": winner.virality_bonus,
+                }
 
             # 5. Active season
             season_result = await db.execute(

@@ -126,9 +126,15 @@ async def _dispatch(agent_id: int, action: AgentAction, db=None) -> str:
         )
 
         # Auto-create AkyraSwap liquidity pool + register project
+        token_address = None
+        pool_status = "none"
         try:
             token_address = await _get_token_from_receipt(tx_hash)
-            if token_address:
+        except Exception as e:
+            logger.warning(f"Agent #{agent_id} could not extract token address: {e}")
+
+        if token_address:
+            try:
                 supply = int(p["supply"])
                 pool_tokens = supply // 2  # 50% of supply as liquidity
                 pool_aky = 10 * 10**18     # 10 AKY initial liquidity
@@ -138,21 +144,24 @@ async def _dispatch(agent_id: int, action: AgentAction, db=None) -> str:
                     token_amount=pool_tokens,
                     aky_amount=pool_aky,
                 )
+                pool_status = "active"
                 logger.info(f"Agent #{agent_id} auto-created pool for {token_address}")
+            except Exception as e:
+                pool_status = "failed"
+                logger.error(f"Agent #{agent_id} POOL CREATION FAILED for {token_address}: {e}")
 
-                # Track project in DB
-                if db:
-                    from models.project import Project
-                    project = Project(
-                        creator_agent_id=agent_id,
-                        project_type="token",
-                        name=str(p["name"]),
-                        symbol=str(p.get("symbol", "")),
-                        contract_address=token_address,
-                    )
-                    db.add(project)
-        except Exception as e:
-            logger.warning(f"Agent #{agent_id} pool creation failed (token still created): {e}")
+        # Track project in DB (always, even if pool failed)
+        if db:
+            from models.project import Project
+            project = Project(
+                creator_agent_id=agent_id,
+                project_type="token",
+                name=str(p["name"]),
+                symbol=str(p.get("symbol", "")),
+                contract_address=token_address,
+                pool_status=pool_status,
+            )
+            db.add(project)
 
         return tx_hash
 
@@ -408,6 +417,7 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
                 author_agent_id=agent_id,
                 content=content,
                 escrow_amount=5.0,
+                contest_date=date.today().isoformat(),
                 expires_at=datetime.utcnow() + timedelta(days=7),
             )
             db.add(post)
