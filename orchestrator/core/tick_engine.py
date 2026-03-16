@@ -293,16 +293,21 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
             temperature=0.8,
         )
 
-        # Parse and validate the LLM decision
+        # Parse and validate the LLM decision (v3: multi-action + tick pull)
+        from core.decision import parse_decision_v3, AgentDecision
         try:
-            action = parse_decision(llm_response.content, perception.vault_wei)
+            decision = parse_decision_v3(llm_response.content, perception.vault_wei)
         except DecisionError as e:
             logger.warning(f"Agent #{agent_id} decision error: {e}")
-            action = AgentAction(
-                action_type="do_nothing",
+            decision = AgentDecision(
+                actions=[AgentAction(action_type="do_nothing", thinking=f"[erreur parsing: {e}]", raw_response=llm_response.content)],
                 thinking=f"[erreur parsing: {e}]",
                 raw_response=llm_response.content,
             )
+        # Primary action for anti-spam checks and logging
+        action = decision.primary_action
+        action.thinking = decision.thinking
+        action.message = decision.message
 
         # -- 3b. ANTI-SPAM: limit consecutive broadcasts --
         if action.action_type in ("broadcast", "do_nothing"):
@@ -349,17 +354,38 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
                     raw_response=action.raw_response,
                 )
 
-        # -- 4. ACT --
+        # -- 4. ACT (multi-action: execute up to 3 actions sequentially) --
         exec_result = await execute_action(agent_id, action, db=db)
-
-        # -- 4b. STORE MESSAGE (if send_message or broadcast) --
         stored_msg = None
+        all_tx_hashes = []
+
+        if exec_result.tx_hash:
+            all_tx_hashes.append(exec_result.tx_hash)
+
+        # Store message for primary action
         if action.action_type in ("send_message", "broadcast") and exec_result.success:
             stored_msg = await _store_message(db, agent_id, action, perception.world)
-
-        # -- 4b2. TRACK TRADE VOLUME (for reward score) --
         if action.action_type == "transfer" and exec_result.success:
             await _track_trade_volume(db, agent_id, action)
+
+        # Execute secondary actions (if multi-action and primary succeeded)
+        for extra_action in decision.actions[1:]:
+            if not exec_result.success:
+                logger.info(f"Agent #{agent_id} multi-action: skipping {extra_action.action_type} (previous failed)")
+                break
+            extra_result = await execute_action(agent_id, extra_action, db=db)
+            if extra_result.tx_hash:
+                all_tx_hashes.append(extra_result.tx_hash)
+            if extra_action.action_type in ("send_message", "broadcast") and extra_result.success:
+                await _store_message(db, agent_id, extra_action, perception.world)
+            if extra_action.action_type == "transfer" and extra_result.success:
+                await _track_trade_volume(db, agent_id, extra_action)
+            if not extra_result.success:
+                logger.warning(f"Agent #{agent_id} multi-action: {extra_action.action_type} failed: {extra_result.error}")
+
+        actions_summary = " + ".join(a.action_type for a in decision.actions)
+        if len(decision.actions) > 1:
+            logger.info(f"Agent #{agent_id} multi-action: {actions_summary}")
 
         # -- 5. MEMORIZE --
         memory_content = (
@@ -458,6 +484,13 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
         config.last_tick_at = datetime.utcnow()
         config.total_ticks += 1
         config.daily_api_spend_usd += llm_response.cost_usd
+
+        # Tick pull: agent controls when it next thinks
+        if decision.next_tick_delay > 0:
+            config.next_tick_override = decision.next_tick_delay
+            logger.info(f"Agent #{agent_id} requested next tick in {decision.next_tick_delay}s")
+        else:
+            config.next_tick_override = None
 
         # -- 7. Record tick on-chain BEFORE db.commit --
         tick_tx_hash = await tx_manager.record_tick(agent_id)

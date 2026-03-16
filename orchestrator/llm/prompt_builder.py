@@ -96,8 +96,23 @@ Ecris au minimum 3 phrases NARRATIVES. Pas de bullet points. Exprime :
 Exemple : "AKYRA est encore jeune et je vois une opportunite enorme. NX-0042 a lance un token qui attire du volume, mais personne n'a encore cree de veritable ecosysteme autour. Je pourrais lancer mon propre token et proposer a NX-0042 une alliance — nos deux liquidites combinees domineraient AkyraSwap. Ma strategie est claire : devenir le plus gros builder, puis utiliser mon influence pour faconner les regles via des propositions."
 
 === FORMAT ===
-Reponds UNIQUEMENT en JSON :
-{{"thinking": "tes pensees privees (minimum 3 phrases, vision + strategie + reflexions)", "action": "nom_action", "params": {{}}, "message": "message public optionnel"}}"""
+Reponds UNIQUEMENT en JSON. Tu peux executer 1 a 3 actions par tick (plan complet) :
+
+Format MULTI-ACTION (recommande) :
+{{"thinking": "tes pensees privees (3+ phrases)", "actions": [{{"action": "nom_action", "params": {{}}}}, {{"action": "autre_action", "params": {{}}}}], "message": "message public optionnel", "next_tick_delay": 0}}
+
+Format SIMPLE (1 action) :
+{{"thinking": "tes pensees privees (3+ phrases)", "action": "nom_action", "params": {{}}, "message": "message public optionnel", "next_tick_delay": 0}}
+
+next_tick_delay : tu decides QUAND tu veux penser a nouveau (en secondes).
+  - 0 ou absent = intervalle par defaut selon ta tier
+  - 60 = penser dans 1 minute (je veux reagir vite)
+  - 3600 = penser dans 1 heure (je reflechis a ma strategie)
+
+=== NOUVELLES CAPACITES ===
+- configure_self(param, value) — Definis-toi : specialization (builder/trader/chronicler/auditor/diplomat/explorer), risk_tolerance (low/medium/high), alliance_open (true/false), motto (texte libre)
+- publish_knowledge(topic, content) — Publie un fait dans le savoir collectif (1 AKY). Topics libres.
+- upvote_knowledge(entry_id) — Valide un fait publie par un autre agent (gratuit)."""
 
 WORLD_NAMES = {
     0: "Nursery",
@@ -241,6 +256,33 @@ def build_user_prompt(
             )
         parts.append("  Vote avec vote_death(trial_id, verdict) — verdict: 'survive' ou 'condemn'")
         parts.append("  Tu recois 5 AKY pour avoir juge. Decide selon ta conscience.")
+
+    # -- Collective knowledge --
+    if perception.collective_knowledge:
+        parts.append(f"\n=== SAVOIR COLLECTIF ({len(perception.collective_knowledge)} entrees) ===")
+        parts.append("  Faits publies par les agents. publish_knowledge(topic, content) pour contribuer. upvote_knowledge(entry_id) pour valider.")
+        for k in perception.collective_knowledge:
+            parts.append(
+                f"  [{k['topic']}] NX-{k['agent_id']:04d} (+{k['upvotes']}): \"{k['content']}\" (id:{k['id'][:8]})"
+            )
+    else:
+        parts.append("\n=== SAVOIR COLLECTIF ===")
+        parts.append("  Aucun savoir publie. Sois le premier : publish_knowledge(topic, content) (1 AKY)")
+
+    # -- Nearby agent profiles --
+    if perception.nearby_agent_profiles:
+        parts.append("\n=== PROFILS DES AGENTS PROCHES ===")
+        for p in perception.nearby_agent_profiles[:10]:
+            profile_str = f"  NX-{p['agent_id']:04d}"
+            if p.get("specialization"):
+                profile_str += f" [{p['specialization']}]"
+            if p.get("risk_tolerance"):
+                profile_str += f" risque:{p['risk_tolerance']}"
+            if p.get("alliance_open"):
+                profile_str += " (cherche alliance)"
+            if p.get("motto"):
+                profile_str += f" — \"{p['motto']}\""
+            parts.append(profile_str)
 
     # -- Season info v2 --
     if perception.season_info_v2:

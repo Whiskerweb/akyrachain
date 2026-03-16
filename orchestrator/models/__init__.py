@@ -24,6 +24,7 @@ from models.daily_impact_score import DailyImpactScore
 # v3 Governance models
 from models.governor_vote import GovernorVote
 from models.death_trial import DeathTrial, DeathVote
+from models.knowledge_entry import KnowledgeEntry, KnowledgeVote
 
 __all__ = [
     "Base", "User", "AgentConfig", "TickLog", "Event", "FaucetClaim",
@@ -35,4 +36,5 @@ __all__ = [
     "DailyImpactScore",
     # v3 Governance
     "GovernorVote", "DeathTrial", "DeathVote",
+    "KnowledgeEntry", "KnowledgeVote",
 ]

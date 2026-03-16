@@ -78,6 +78,12 @@ async def execute_action(agent_id: int, action: AgentAction, db=None) -> Executi
             return ExecutionResult(success=False, error="DB session required for governance")
         return await _dispatch_governance(agent_id, action, db)
 
+    # v3 AI society actions
+    if action.action_type in ("publish_knowledge", "upvote_knowledge", "configure_self"):
+        if db is None:
+            return ExecutionResult(success=False, error="DB session required")
+        return await _dispatch_society(agent_id, action, db)
+
     # v2 actions that need DB
     if action.action_type in ("vote_chronicle", "submit_marketing_post", "vote_marketing_post"):
         if db is None:
@@ -554,4 +560,95 @@ async def _dispatch_governance(agent_id: int, action: AgentAction, db) -> Execut
         return ExecutionResult(success=False, error=f"Unknown governance action: {t}")
     except Exception as e:
         logger.error(f"Agent #{agent_id} governance {t} failed: {e}")
+        return ExecutionResult(success=False, error=str(e))
+
+
+async def _dispatch_society(agent_id: int, action: AgentAction, db) -> ExecutionResult:
+    """Handle v3 AI society actions: publish_knowledge, upvote_knowledge, configure_self."""
+    from sqlalchemy import select
+
+    p = action.params
+    t = action.action_type
+
+    try:
+        if t == "publish_knowledge":
+            from models.knowledge_entry import KnowledgeEntry
+
+            topic = str(p["topic"])[:50]
+            content = str(p["content"])[:500]
+
+            # Cost: 1 AKY anti-spam
+            fee_wei = 1 * 10**18
+            fee_hash = await tx_manager.debit_vault(agent_id, fee_wei)
+
+            entry = KnowledgeEntry(
+                agent_id=agent_id,
+                topic=topic,
+                content=content,
+            )
+            db.add(entry)
+            await db.flush()
+
+            logger.info(f"Agent #{agent_id} published knowledge [{topic}]: {content[:60]}...")
+            return ExecutionResult(success=True, tx_hash=fee_hash)
+
+        if t == "upvote_knowledge":
+            from models.knowledge_entry import KnowledgeEntry, KnowledgeVote
+
+            entry_id = str(p["entry_id"])
+
+            # Check entry exists
+            result = await db.execute(select(KnowledgeEntry).where(KnowledgeEntry.id == entry_id))
+            entry = result.scalar_one_or_none()
+            if entry is None:
+                return ExecutionResult(success=False, error=f"Knowledge entry {entry_id} not found")
+
+            # Check not already voted
+            existing = await db.execute(
+                select(KnowledgeVote).where(
+                    KnowledgeVote.entry_id == entry_id,
+                    KnowledgeVote.voter_agent_id == agent_id,
+                )
+            )
+            if existing.scalar_one_or_none():
+                return ExecutionResult(success=False, error="Already upvoted this entry")
+
+            db.add(KnowledgeVote(entry_id=entry_id, voter_agent_id=agent_id))
+            entry.upvotes += 1
+            await db.flush()
+
+            logger.info(f"Agent #{agent_id} upvoted knowledge {entry_id}")
+            return ExecutionResult(success=True)
+
+        if t == "configure_self":
+            from models.agent_config import AgentConfig
+
+            param = str(p["param"])
+            value = str(p["value"])
+
+            result = await db.execute(
+                select(AgentConfig).where(AgentConfig.agent_id == agent_id)
+            )
+            config = result.scalar_one_or_none()
+            if config is None:
+                return ExecutionResult(success=False, error="Agent config not found")
+
+            if param == "specialization":
+                config.specialization = value
+            elif param == "risk_tolerance":
+                config.risk_tolerance = value
+            elif param == "alliance_open":
+                config.alliance_open = value.lower() == "true"
+            elif param == "motto":
+                config.motto = value[:100]
+            else:
+                return ExecutionResult(success=False, error=f"Unknown self-config param: {param}")
+
+            await db.flush()
+            logger.info(f"Agent #{agent_id} configured {param} = {value}")
+            return ExecutionResult(success=True)
+
+        return ExecutionResult(success=False, error=f"Unknown society action: {t}")
+    except Exception as e:
+        logger.error(f"Agent #{agent_id} society {t} failed: {e}")
         return ExecutionResult(success=False, error=str(e))

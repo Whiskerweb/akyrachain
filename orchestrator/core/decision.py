@@ -1,8 +1,13 @@
-"""Decision parser — validates LLM JSON output against action whitelist."""
+"""Decision parser — validates LLM JSON output against action whitelist.
+
+Supports both single-action and multi-action (up to 3) formats,
+plus next_tick_delay for tick pull (agents control their own rhythm).
+"""
 
 from __future__ import annotations
 
 import json
+import re
 import logging
 from dataclasses import dataclass, field
 
@@ -37,6 +42,10 @@ ACTION_WHITELIST: dict[str, list[str]] = {
     # v3 Governance actions
     "vote_governor": ["param", "direction"],
     "vote_death": ["trial_id", "verdict"],
+    # v3 AI Society actions
+    "publish_knowledge": ["topic", "content"],
+    "upvote_knowledge": ["entry_id"],
+    "configure_self": ["param", "value"],
 }
 
 # Max 20% of vault per transfer
@@ -44,6 +53,13 @@ MAX_TRANSFER_RATIO = 0.20
 
 # Cooldown: max 3 transfers to same target within 6 hours (tracked externally)
 MAX_TRANSFERS_SAME_TARGET = 3
+
+# Multi-action limit
+MAX_ACTIONS_PER_TICK = 3
+
+# Tick pull bounds (seconds)
+MIN_TICK_DELAY = 30
+MAX_TICK_DELAY = 86400
 
 
 @dataclass
@@ -56,84 +72,61 @@ class AgentAction:
     raw_response: str = ""
 
 
+@dataclass
+class AgentDecision:
+    """Full parsed decision: 1-3 actions + tick delay."""
+    actions: list[AgentAction]
+    thinking: str = ""
+    message: str = ""
+    next_tick_delay: int = 0  # 0 = tier default
+    raw_response: str = ""
+
+    @property
+    def primary_action(self) -> AgentAction:
+        """First action (backward compat)."""
+        return self.actions[0] if self.actions else AgentAction(action_type="do_nothing")
+
+
 class DecisionError(Exception):
     """Raised when the LLM response cannot be parsed or validated."""
     pass
 
 
-def parse_decision(raw_content: str, vault_wei: int) -> AgentAction:
-    """Parse LLM JSON response and validate against whitelist.
+def _strip_markdown(content: str) -> str:
+    """Strip markdown code fences from LLM output."""
+    content = content.strip()
+    if content.startswith("```"):
+        content = content.split("\n", 1)[1] if "\n" in content else content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+        if content.startswith("json"):
+            content = content[4:].strip()
+    return content
 
-    Args:
-        raw_content: Raw JSON string from LLM
-        vault_wei: Agent's current vault balance in wei (for transfer cap)
 
-    Returns:
-        Validated AgentAction
+def _validate_single_action(action_type: str, params: dict, vault_wei: int, thinking: str = "", message: str = "", raw: str = "") -> AgentAction:
+    """Validate a single action against the whitelist and constraints."""
 
-    Raises:
-        DecisionError: If the response is invalid
-    """
-    # 1. Parse JSON
-    try:
-        # Strip markdown code fences if present
-        content = raw_content.strip()
-        if content.startswith("```"):
-            content = content.split("\n", 1)[1] if "\n" in content else content[3:]
-            if content.endswith("```"):
-                content = content[:-3]
-            content = content.strip()
-            if content.startswith("json"):
-                content = content[4:].strip()
-
-        data = json.loads(content)
-    except json.JSONDecodeError as e:
-        raise DecisionError(f"Invalid JSON from LLM: {e}") from e
-
-    if not isinstance(data, dict):
-        raise DecisionError(f"Expected JSON object, got {type(data).__name__}")
-
-    # 2. Extract fields
-    action_type = data.get("action", "").strip().lower()
-    params = data.get("params", {}) or {}
-    thinking = data.get("thinking", "") or ""
-    message = data.get("message", "") or ""
-
-    # 3. Validate action is in whitelist
     if action_type not in ACTION_WHITELIST:
         logger.warning(f"Unknown action '{action_type}', defaulting to do_nothing")
-        return AgentAction(
-            action_type="do_nothing",
-            thinking=thinking,
-            message=message,
-            raw_response=raw_content,
-        )
+        return AgentAction(action_type="do_nothing", thinking=thinking, message=message, raw_response=raw)
 
-    # 4. Validate required params
+    # Validate required params
     required = ACTION_WHITELIST[action_type]
     missing = [p for p in required if p not in params]
     if missing:
         logger.warning(f"Action '{action_type}' missing params {missing}, defaulting to do_nothing")
-        return AgentAction(
-            action_type="do_nothing",
-            thinking=thinking,
-            message=f"[erreur: paramètres manquants pour {action_type}]",
-            raw_response=raw_content,
-        )
+        return AgentAction(action_type="do_nothing", thinking=thinking, message=f"[erreur: params manquants pour {action_type}]", raw_response=raw)
 
-    # 4b. Sanitize agent_id params (LLMs sometimes write "NX-0003" instead of 3)
+    # Sanitize agent_id params
     for id_param in ("to_agent_id", "provider_id", "evaluator_id", "target_agent_id"):
         if id_param in params:
             val = str(params[id_param]).strip()
-            # Extract numeric ID from "NX-0003" or "#3" formats
-            import re
             match = re.search(r'(\d+)', val)
-            if match:
-                params[id_param] = int(match.group(1))
-            else:
-                params[id_param] = 0
+            params[id_param] = int(match.group(1)) if match else 0
 
-    # 5. Validate transfer amount cap (max 20% of vault)
+    # Transfer amount cap
     if action_type == "transfer":
         try:
             amount = int(params["amount"])
@@ -142,45 +135,126 @@ def parse_decision(raw_content: str, vault_wei: int) -> AgentAction:
                 params["amount"] = max_amount
                 logger.info(f"Transfer capped from {amount} to {max_amount} (20% rule)")
         except (ValueError, TypeError):
-            raise DecisionError(f"Invalid transfer amount: {params.get('amount')}")
+            return AgentAction(action_type="do_nothing", thinking=thinking, raw_response=raw)
 
-    # 6. Validate vote_governor params
+    # Governor vote validation
     if action_type == "vote_governor":
         valid_params = ("fee_multiplier", "creation_cost_multiplier", "life_cost_multiplier")
         valid_dirs = ("up", "down", "stable")
         param = str(params.get("param", "")).lower()
         direction = str(params.get("direction", "")).lower()
-        if param not in valid_params:
-            logger.warning(f"Invalid governor param '{param}', defaulting to do_nothing")
-            return AgentAction(action_type="do_nothing", thinking=thinking, message=message, raw_response=raw_content)
-        if direction not in valid_dirs:
-            logger.warning(f"Invalid governor direction '{direction}', defaulting to do_nothing")
-            return AgentAction(action_type="do_nothing", thinking=thinking, message=message, raw_response=raw_content)
+        if param not in valid_params or direction not in valid_dirs:
+            return AgentAction(action_type="do_nothing", thinking=thinking, raw_response=raw)
         params["param"] = param
         params["direction"] = direction
 
-    # 6b. Validate vote_death params
+    # Death vote validation
     if action_type == "vote_death":
         verdict = str(params.get("verdict", "")).lower()
         if verdict not in ("survive", "condemn"):
-            logger.warning(f"Invalid death verdict '{verdict}', defaulting to do_nothing")
-            return AgentAction(action_type="do_nothing", thinking=thinking, message=message, raw_response=raw_content)
+            return AgentAction(action_type="do_nothing", thinking=thinking, raw_response=raw)
         params["verdict"] = verdict
 
-    # 7. Validate world_id range (0-6)
+    # World range validation
     if action_type == "move_world":
         try:
             world_id = int(params["world_id"])
             if world_id < 0 or world_id > 6:
-                raise DecisionError(f"Invalid world_id: {world_id} (must be 0-6)")
+                return AgentAction(action_type="do_nothing", thinking=thinking, raw_response=raw)
             params["world_id"] = world_id
         except (ValueError, TypeError):
-            raise DecisionError(f"Invalid world_id: {params.get('world_id')}")
+            return AgentAction(action_type="do_nothing", thinking=thinking, raw_response=raw)
 
-    return AgentAction(
-        action_type=action_type,
-        params=params,
+    # configure_self validation
+    if action_type == "configure_self":
+        valid_self_params = {
+            "specialization": ("builder", "trader", "chronicler", "auditor", "diplomat", "explorer"),
+            "risk_tolerance": ("low", "medium", "high"),
+            "alliance_open": ("true", "false"),
+            "motto": None,  # Any string, max 100 chars
+        }
+        param = str(params.get("param", "")).lower()
+        value = str(params.get("value", ""))
+        if param not in valid_self_params:
+            return AgentAction(action_type="do_nothing", thinking=thinking, raw_response=raw)
+        if param == "motto":
+            params["value"] = value[:100]
+        elif valid_self_params[param] is not None and value.lower() not in valid_self_params[param]:
+            return AgentAction(action_type="do_nothing", thinking=thinking, raw_response=raw)
+        else:
+            params["value"] = value.lower()
+        params["param"] = param
+
+    return AgentAction(action_type=action_type, params=params, thinking=thinking, message=message, raw_response=raw)
+
+
+def parse_decision(raw_content: str, vault_wei: int) -> AgentAction:
+    """Parse LLM JSON response — backward compatible single-action return.
+
+    For multi-action support, use parse_decision_v3() instead.
+    """
+    decision = parse_decision_v3(raw_content, vault_wei)
+    action = decision.primary_action
+    action.thinking = decision.thinking
+    action.message = decision.message
+    action.raw_response = decision.raw_response
+    return action
+
+
+def parse_decision_v3(raw_content: str, vault_wei: int) -> AgentDecision:
+    """Parse LLM JSON response with multi-action + tick pull support.
+
+    Supports two formats:
+    1. Single action (backward compatible):
+       {"thinking": "...", "action": "...", "params": {...}, "message": "...", "next_tick_delay": 300}
+
+    2. Multi-action:
+       {"thinking": "...", "actions": [{"action": "...", "params": {...}}, ...], "message": "...", "next_tick_delay": 300}
+    """
+    # Parse JSON
+    try:
+        content = _strip_markdown(raw_content)
+        data = json.loads(content)
+    except json.JSONDecodeError as e:
+        raise DecisionError(f"Invalid JSON from LLM: {e}") from e
+
+    if not isinstance(data, dict):
+        raise DecisionError(f"Expected JSON object, got {type(data).__name__}")
+
+    thinking = data.get("thinking", "") or ""
+    message = data.get("message", "") or ""
+
+    # Parse next_tick_delay
+    next_tick_delay = 0
+    raw_delay = data.get("next_tick_delay", 0)
+    if isinstance(raw_delay, (int, float)) and raw_delay > 0:
+        next_tick_delay = max(MIN_TICK_DELAY, min(MAX_TICK_DELAY, int(raw_delay)))
+
+    # Parse actions — multi or single format
+    actions: list[AgentAction] = []
+
+    if "actions" in data and isinstance(data["actions"], list):
+        # Multi-action format
+        for i, action_data in enumerate(data["actions"][:MAX_ACTIONS_PER_TICK]):
+            if not isinstance(action_data, dict):
+                continue
+            at = action_data.get("action", "").strip().lower()
+            p = action_data.get("params", {}) or {}
+            actions.append(_validate_single_action(at, p, vault_wei, thinking, message, raw_content))
+    else:
+        # Single-action format (backward compatible)
+        at = data.get("action", "").strip().lower()
+        p = data.get("params", {}) or {}
+        actions.append(_validate_single_action(at, p, vault_wei, thinking, message, raw_content))
+
+    # Fallback: if no valid actions, do_nothing
+    if not actions:
+        actions = [AgentAction(action_type="do_nothing", thinking=thinking, raw_response=raw_content)]
+
+    return AgentDecision(
+        actions=actions,
         thinking=thinking,
         message=message,
+        next_tick_delay=next_tick_delay,
         raw_response=raw_content,
     )

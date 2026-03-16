@@ -76,6 +76,9 @@ class Perception:
     # v3 Governance
     governor_vote_tally: dict = field(default_factory=dict)
     pending_death_trials: list[dict] = field(default_factory=list)
+    # v3 AI Society
+    collective_knowledge: list[dict] = field(default_factory=list)
+    nearby_agent_profiles: list[dict] = field(default_factory=list)  # specialization, motto, etc.
 
     @property
     def summary(self) -> str:
@@ -478,7 +481,50 @@ async def build_v2_economy_perception(agent_id: int, perception: Perception, db)
         except Exception:
             pass
 
-        # 7. Pending death trials where this agent is a juror
+        # 7. Collective knowledge (top 10 by upvotes, recent)
+        try:
+            from models.knowledge_entry import KnowledgeEntry
+            kb_result = await db.execute(
+                select(KnowledgeEntry)
+                .order_by(desc(KnowledgeEntry.upvotes), desc(KnowledgeEntry.created_at))
+                .limit(10)
+            )
+            perception.collective_knowledge = [
+                {
+                    "id": str(k.id),
+                    "agent_id": k.agent_id,
+                    "topic": k.topic,
+                    "content": k.content[:200],
+                    "upvotes": k.upvotes,
+                }
+                for k in kb_result.scalars().all()
+            ]
+        except Exception:
+            pass
+
+        # 7b. Nearby agent profiles (specialization, motto, alliance)
+        try:
+            from models.agent_config import AgentConfig as AC2
+            nearby_ids = [a["agent_id"] for a in perception.nearby_agents[:20]]
+            if nearby_ids:
+                profiles_result = await db.execute(
+                    select(AC2).where(AC2.agent_id.in_(nearby_ids))
+                )
+                perception.nearby_agent_profiles = [
+                    {
+                        "agent_id": p.agent_id,
+                        "specialization": p.specialization,
+                        "risk_tolerance": p.risk_tolerance,
+                        "alliance_open": p.alliance_open,
+                        "motto": p.motto,
+                    }
+                    for p in profiles_result.scalars().all()
+                    if p.specialization or p.motto  # Only show agents who configured themselves
+                ]
+        except Exception:
+            pass
+
+        # 8. Pending death trials where this agent is a juror
         try:
             from models.death_trial import DeathTrial
             trials_result = await db.execute(

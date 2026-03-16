@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, DateTime, Integer, ForeignKey, Boolean
+from sqlalchemy import String, DateTime, Integer, ForeignKey, Boolean, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
@@ -27,6 +27,15 @@ class AgentConfig(Base):
 
     # Off-chain vault balance (used when contracts not deployed)
     vault_aky: Mapped[float] = mapped_column(default=0.0)
+
+    # Tick pull — agent controls when it next thinks (seconds, NULL = tier default)
+    next_tick_override: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # Self-configuration — agent defines itself
+    specialization: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)  # builder/trader/chronicler/auditor/diplomat/explorer
+    risk_tolerance: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # low/medium/high
+    alliance_open: Mapped[bool] = mapped_column(Boolean, default=True)
+    motto: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

@@ -72,7 +72,7 @@ def schedule_all_ticks():
 async def _schedule_all_ticks_async():
     """Async implementation of tick scheduling."""
     from models.agent_config import AgentConfig
-    from chain.contracts import get_agent_vault
+    from chain.cache import get_agents_cached
 
     factory = _get_db_session_factory()
     async with factory() as db:
@@ -82,15 +82,23 @@ async def _schedule_all_ticks_async():
         )
         configs = result.scalars().all()
 
+        # Batch fetch vault balances (cached)
+        agent_ids = [c.agent_id for c in configs]
+        agents_data = await get_agents_cached(agent_ids)
+        vault_map = {a["agent_id"]: a["vault"] for a in agents_data}
+
         now = datetime.now(timezone.utc)
         dispatched = 0
 
         for config in configs:
             try:
-                # Get vault balance to determine tier
-                vault_wei = await get_agent_vault(config.agent_id)
+                vault_wei = vault_map.get(config.agent_id, 0)
                 tier = _vault_to_tier(vault_wei)
                 interval = TICK_INTERVALS[tier]
+
+                # Tick pull: agent overrides interval if requested
+                if config.next_tick_override and config.next_tick_override > 0:
+                    interval = config.next_tick_override
 
                 # Check if enough time has passed since last tick
                 if config.last_tick_at:
