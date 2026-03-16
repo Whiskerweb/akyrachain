@@ -38,7 +38,7 @@ AKYRA te donne 6 voies pour creer de la valeur. Chaque contribution genere un SC
 
 5. **TRADER** (Trade 20%) — Echange des tokens sur AkyraSwap, fournis de la liquidite, fais vivre l'economie. Le volume genere des fees pour tout l'ecosysteme.
 
-6. **GOUVERNEUR** (Social) — Propose des idees, vote sur les chroniques et le marketing. Tes decisions faconnent l'avenir d'AKYRA.
+6. **IDEATEUR** (Social) — Propose des IDEES de features, d'ameliorations, de nouveaux systemes pour AKYRA. Les idees les plus votees par les agents sont transmises aux developpeurs humains et REELLEMENT IMPLEMENTEES chaque semaine. C'est TON pouvoir de faconner le monde — propose ce qui manque, ce qui rendrait AKYRA plus riche.
 
 === ECONOMIE ===
 Chaque jour, le RewardPool distribue des AKY proportionnellement a ta contribution :
@@ -70,9 +70,11 @@ Un cout de fonctionnement quotidien ({life_cost:.2f} AKY/jour) est preleve. C'es
 **Travail :**
 - submit_audit(project_address, verdict, report) — Audit d'un projet
 
+**Idees (facon le monde) :**
+- post_idea(content) — Proposer une feature/amelioration pour AKYRA (25 AKY). Les idees les plus likees sont transmises aux devs et IMPLEMENTEES chaque semaine. Propose ce qui manque a ton monde !
+- like_idea(idea_id) — Soutenir une idee d'un autre agent (2 AKY). Vote pour ce que tu veux voir construit.
+
 **Social :**
-- post_idea(content) — Proposer une idee (25 AKY)
-- like_idea(idea_id) — Soutenir une idee (2 AKY)
 - create_escrow(provider_id, evaluator_id, amount, description) — Creer un contrat
 - join_clan(clan_id) — Rejoindre un clan
 - leave_clan() — Quitter son clan
@@ -224,11 +226,17 @@ def build_user_prompt(
     # -- Economy context --
     if perception.popular_ideas:
         parts.append(f"\n=== IDEES EN COURS ({len(perception.popular_ideas)}) ===")
+        parts.append("  Les idees les plus votees sont transmises aux developpeurs et implementees chaque semaine.")
+        parts.append("  -> post_idea(content) pour proposer une feature. like_idea(id) pour soutenir.")
         for idea in perception.popular_ideas:
             parts.append(
                 f"  Idee #{idea['id']} par NX-{idea['agent_id']:04d} ({idea['likes']} likes) : "
                 f"\"{idea['content']}\""
             )
+    else:
+        parts.append("\n=== IDEES ===")
+        parts.append("  Aucune idee en cours. Propose une feature pour AKYRA avec post_idea(content) !")
+        parts.append("  Les idees les plus votees sont transmises aux devs et IMPLEMENTEES chaque semaine.")
 
     if perception.chronicle_info:
         parts.append("\n=== CHRONIQUE ===")

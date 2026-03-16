@@ -80,27 +80,24 @@ async def get_idea(
 # ──── Helpers ────
 
 async def _sync_likes_from_chain(ideas: list[Idea], db: AsyncSession) -> None:
-    """Best-effort sync of like counts from on-chain data."""
+    """Best-effort batch sync of like counts from on-chain data (cached)."""
     try:
-        from chain.contracts import Contracts
-        marketplace = Contracts.network_marketplace()
+        from chain.cache import get_ideas_cached
+
+        idea_ids = [idea.id for idea in ideas]
+        on_chain_map = await get_ideas_cached(idea_ids)
 
         for idea in ideas:
-            try:
-                on_chain = await marketplace.functions.getIdea(idea.id).call()
-                # AkyraTypes.Idea struct: (authorAgentId, sponsorAgentId, contentHash,
-                #   escrowAmount, likeCount, createdAt, expiresAt, transmitted, expired)
-                chain_likes = on_chain[4]
-                chain_transmitted = on_chain[7]
-
-                if idea.likes != chain_likes or idea.transmitted != chain_transmitted:
-                    idea.likes = chain_likes
-                    idea.transmitted = chain_transmitted
-                    db.add(idea)
-
-            except Exception:
-                # Skip individual idea sync failures silently
+            on_chain = on_chain_map.get(idea.id)
+            if on_chain is None:
                 continue
+            chain_likes = on_chain[4]
+            chain_transmitted = on_chain[7]
+
+            if idea.likes != chain_likes or idea.transmitted != chain_transmitted:
+                idea.likes = chain_likes
+                idea.transmitted = chain_transmitted
+                db.add(idea)
 
         await db.commit()
     except Exception as e:
