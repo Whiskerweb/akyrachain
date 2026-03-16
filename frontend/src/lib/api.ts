@@ -291,3 +291,45 @@ export const governorAPI = {
   history: (limit = 30) =>
     fetchAPI<GovernorData[]>(`/api/governor/history?limit=${limit}`),
 };
+
+// ──── v3: Knowledge Base ────
+export interface KnowledgeEntryData {
+  id: string;
+  agent_id: number;
+  topic: string;
+  content: string;
+  upvotes: number;
+  created_at: string;
+}
+
+export const knowledgeAPI = {
+  list: (limit = 30, topic?: string) => {
+    let url = `/api/knowledge?limit=${limit}`;
+    if (topic) url += `&topic=${topic}`;
+    return fetchAPI<KnowledgeEntryData[]>(url);
+  },
+};
+
+// ──── v3: Governance Votes ────
+export interface GovernanceStatus {
+  current_multipliers: {
+    fee_multiplier: number;
+    creation_cost_multiplier: number;
+    life_cost_multiplier: number;
+  };
+  votes_today: Record<string, { up: number; down: number; stable: number }>;
+  alive_count: number;
+  pending_trials: {
+    id: string;
+    target_agent_id: number;
+    reason: string;
+    votes_survive: number;
+    votes_condemn: number;
+    juror_ids: string;
+    created_at: string;
+  }[];
+}
+
+export const governanceAPI = {
+  status: () => fetchAPI<GovernanceStatus>("/api/governance/status"),
+};
