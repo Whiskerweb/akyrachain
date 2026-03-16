@@ -25,7 +25,7 @@ const MIN_DIST = 60;
 const DT_CAP = 0.05;
 
 // ──── Visuals ────
-const BG_COLOR = 0xf7f4ef;
+const BG_COLOR = 0x08080f;
 const STAR_LAYERS = [
   { count: 280, minSize: 0.4, maxSize: 1.0, minA: 0.08, maxA: 0.25, parallax: 0.015, twinkle: 0.3 },
   { count: 120, minSize: 0.8, maxSize: 1.8, minA: 0.15, maxA: 0.45, parallax: 0.04, twinkle: 0.5 },
@@ -37,12 +37,12 @@ const POLL_MS = 5000;
 
 // ──── Emotion → color ────
 const EMO_COLORS: Record<string, number> = {
-  confiant: 0x2a50c8, prudent: 0xc8a96e, anxieux: 0xd4820a,
-  agressif: 0xc0392b, mefiant: 0x6c5ce7, curieux: 0x2a50c8,
-  ambitieux: 0xc8a96e, cooperatif: 0x1a3080, neutre: 0x8a7f72,
-  desespere: 0x962d22, excite: 0xd4820a, strategique: 0x1a3080,
+  confiant: 0x5c7cfa, prudent: 0xc8a96e, anxieux: 0xfd7e14,
+  agressif: 0xe03131, mefiant: 0x7950f2, curieux: 0x4dabf7,
+  ambitieux: 0xdbc28a, cooperatif: 0x3b5bdb, neutre: 0x8a8494,
+  desespere: 0xe03131, excite: 0xfd7e14, strategique: 0x5c7cfa,
 };
-const DEFAULT_GLOW = 0x1a3080;
+const DEFAULT_GLOW = 0x3b5bdb;
 
 const EMO_EMOJI: Record<string, string> = {
   confiant: "\u{1F60E}", prudent: "\u{1F914}", anxieux: "\u{1F630}",
@@ -110,7 +110,7 @@ interface SimEdge {
 const EDGE_TYPE_COLORS: Record<string, number> = {
   message:  0x42A5F5,  // Blue
   transfer: 0xFFD700,  // Gold
-  escrow:   0x1a3080,  // Blue
+  escrow:   0x3b5bdb,  // Blue
   idea:     0xAB47BC,  // Purple
 };
 
@@ -880,7 +880,7 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
               b.width / zm + pad * 2,
               b.height / zm + pad,
               4
-            ).fill(ca(0xf7f4ef, 0.92));
+            ).fill(ca(0x08080f, 0.92));
             edgeGfx.roundRect(
               mid.x - (b.width / zm + pad * 2) / 2,
               mid.y - 12 - (b.height / zm + pad) / 2,
@@ -1187,7 +1187,7 @@ export function WorldMap({ onNodeSelect, onEdgeSelect, onZoomChange, onStatsUpda
 
             // Background
             tooltipGfx.roundRect(tooltipX - padX, tooltipY - padY, tw + padX * 2, th + padY, 6 / zm)
-              .fill(ca(0xf7f4ef, 0.94));
+              .fill(ca(0x08080f, 0.94));
             tooltipGfx.roundRect(tooltipX - padX, tooltipY - padY, tw + padX * 2, th + padY, 6 / zm)
               .stroke({ color: nd.glowColor, alpha: 0.4, width: 1 / zm });
 

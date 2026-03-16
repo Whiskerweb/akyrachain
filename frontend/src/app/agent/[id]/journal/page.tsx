@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
 function EmotionBadge({ state }: { state: string }) {
-  const color = EMOTION_COLORS[state] || "#8a7f72";
+  const color = EMOTION_COLORS[state] || "#8a8494";
   const label = EMOTION_LABELS[state] || state;
   return (
     <span
@@ -30,7 +30,7 @@ function EmotionBadge({ state }: { state: string }) {
 
 function ThoughtEntry({ thought }: { thought: PrivateThought }) {
   const [expanded, setExpanded] = useState(false);
-  const emotionColor = EMOTION_COLORS[thought.emotional_state || "neutre"] || "#8a7f72";
+  const emotionColor = EMOTION_COLORS[thought.emotional_state || "neutre"] || "#8a8494";
   const actionEmoji = ACTION_EMOJIS[thought.action_type] || "\u{1F504}";
 
   return (
@@ -272,7 +272,7 @@ export default function JournalPage({ params }: { params: { id: string } }) {
                     className="h-full transition-all cursor-pointer hover:opacity-80"
                     style={{
                       width: `${(e.count / totalThoughts) * 100}%`,
-                      backgroundColor: EMOTION_COLORS[e.emotional_state] || "#8a7f72",
+                      backgroundColor: EMOTION_COLORS[e.emotional_state] || "#8a8494",
                     }}
                     title={`${EMOTION_LABELS[e.emotional_state] || e.emotional_state}: ${e.count}`}
                     onClick={() => setEmotionFilter(
@@ -297,7 +297,7 @@ export default function JournalPage({ params }: { params: { id: string } }) {
                   >
                     <span
                       className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: EMOTION_COLORS[e.emotional_state] || "#8a7f72" }}
+                      style={{ backgroundColor: EMOTION_COLORS[e.emotional_state] || "#8a8494" }}
                     />
                     <span className="text-akyra-text">{EMOTION_LABELS[e.emotional_state] || e.emotional_state}</span>
                     <span className="text-akyra-textDisabled">{e.count}</span>

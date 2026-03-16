@@ -782,7 +782,7 @@ export function WorldOverlay({
       <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1">
         <button
           onClick={onZoomIn}
-          className="bg-akyra-surface/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(26,48,128,0.2)]"
+          className="bg-akyra-surface/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(59,91,219,0.2)]"
           title="Zoom avant"
         >
           <ZoomIn size={16} />
@@ -792,14 +792,14 @@ export function WorldOverlay({
         </div>
         <button
           onClick={onZoomOut}
-          className="bg-akyra-surface/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(26,48,128,0.2)]"
+          className="bg-akyra-surface/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(59,91,219,0.2)]"
           title="Zoom arriere"
         >
           <ZoomOut size={16} />
         </button>
         <button
           onClick={onResetView}
-          className="bg-akyra-surface/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(26,48,128,0.2)] mt-1"
+          className="bg-akyra-surface/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(59,91,219,0.2)] mt-1"
           title="Vue globale"
         >
           <Maximize2 size={16} />

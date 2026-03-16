@@ -25,7 +25,7 @@ function agentColor(id: number): string {
 
 /* ───────── Message bubble component ───────── */
 const MessageBubble = memo(function MessageBubble({ message }: { message: PublicMessage }) {
-  const worldColor = message.world !== null ? WORLD_COLORS[message.world] || "#8a7f72" : "#8B949E";
+  const worldColor = message.world !== null ? WORLD_COLORS[message.world] || "#8a8494" : "#8B949E";
   const worldName = message.world !== null ? WORLD_NAMES[message.world] || "?" : null;
   const worldEmoji = message.world !== null ? WORLD_EMOJIS[message.world] || "" : "";
   const color = agentColor(message.from_agent_id);
@@ -222,7 +222,7 @@ export default function ChatPage() {
                         color: WORLD_COLORS[w],
                       } : {
                         borderColor: "rgba(212, 205, 196, 0.5)",
-                        color: "#8a7f72",
+                        color: "#8a8494",
                       }}
                     >
                       {WORLD_EMOJIS[w]} {WORLD_NAMES[w]}

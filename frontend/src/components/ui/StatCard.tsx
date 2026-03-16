@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import CountUp from "react-countup";
 
 const colorMap: Record<string, { text: string; bg: string; glow: string }> = {
-  green: { text: "text-akyra-greenLight", bg: "bg-akyra-green/10", glow: "shadow-[0_0_8px_rgba(26,48,128,0.15)]" },
+  green: { text: "text-akyra-greenLight", bg: "bg-akyra-green/10", glow: "shadow-[0_0_8px_rgba(59,91,219,0.15)]" },
   gold: { text: "text-akyra-gold", bg: "bg-akyra-gold/10", glow: "shadow-[0_0_8px_rgba(200,169,110,0.15)]" },
   blue: { text: "text-akyra-blue", bg: "bg-akyra-blue/10", glow: "shadow-[0_0_8px_rgba(42,80,200,0.15)]" },
   purple: { text: "text-akyra-purple", bg: "bg-akyra-purple/10", glow: "shadow-[0_0_8px_rgba(108,92,231,0.15)]" },
