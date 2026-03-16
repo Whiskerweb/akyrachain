@@ -11,7 +11,8 @@ from models.base import get_db
 from models.user import User
 from models.agent_config import AgentConfig
 from security.auth import get_current_user
-from chain.contracts import get_agent_vault, get_agent_on_chain
+from chain.contracts import get_agent_vault
+from chain.cache import get_agent_cached
 from chain.tx_manager import deposit_for_agent, wait_for_receipt
 
 logger = logging.getLogger(__name__)
@@ -88,7 +89,7 @@ async def withdraw(
         raise HTTPException(status_code=400, detail="Amount must be positive")
 
     try:
-        agent = await get_agent_on_chain(config.agent_id)
+        agent = await get_agent_cached(config.agent_id)
         current_vault = agent["vault"] / 10**18
     except Exception:
         current_vault = 0.0
@@ -116,7 +117,7 @@ async def sponsor_status(
         raise HTTPException(status_code=404, detail="No agent found")
 
     try:
-        agent = await get_agent_on_chain(config.agent_id)
+        agent = await get_agent_cached(config.agent_id)
         vault_aky = agent["vault"] / 10**18
     except Exception:
         vault_aky = 0.0

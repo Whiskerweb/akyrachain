@@ -14,7 +14,8 @@ from models.base import get_db
 from models.user import User
 from models.agent_config import AgentConfig
 from security.auth import get_current_user
-from chain.contracts import get_agent_on_chain, get_sponsor_agent_id, get_agent_vault, is_agent_alive
+from chain.contracts import get_sponsor_agent_id, get_agent_vault, is_agent_alive
+from chain.cache import get_agent_cached, get_agents_cached
 from chain.tx_manager import create_agent as create_agent_tx, wait_for_receipt
 
 logger = logging.getLogger(__name__)
@@ -124,7 +125,7 @@ async def get_my_agent(
 
     # Try reading on-chain data, fallback to defaults if contracts not deployed
     try:
-        agent = await get_agent_on_chain(config.agent_id)
+        agent = await get_agent_cached(config.agent_id)
         vault_aky = agent["vault"] / 10**18
     except Exception:
         logger.warning(f"Cannot read agent #{config.agent_id} on-chain, using defaults")
@@ -177,7 +178,7 @@ async def get_my_agent(
 async def get_agent(agent_id: int):
     """Get a public agent profile by on-chain ID."""
     try:
-        agent = await get_agent_on_chain(agent_id)
+        agent = await get_agent_cached(agent_id)
     except Exception:
         raise HTTPException(status_code=404, detail=f"Agent #{agent_id} not found")
 
@@ -213,12 +214,15 @@ async def list_agents(
     result = await db.execute(query)
     configs = result.scalars().all()
 
-    agents = []
+    # Batch fetch all agents (cached, parallel)
+    agent_ids = [c.agent_id for c in configs]
+    agents_list = await get_agents_cached(agent_ids)
+    agents_map = {a["agent_id"]: a for a in agents_list}
+
+    out = []
     for config in configs:
-        try:
-            agent = await get_agent_on_chain(config.agent_id)
-        except Exception:
-            # Contracts not deployed — default to 0
+        agent = agents_map.get(config.agent_id)
+        if agent is None:
             agent = {
                 "agent_id": config.agent_id,
                 "vault": 0, "reputation": 0,
@@ -231,7 +235,7 @@ async def list_agents(
             continue
         if world is not None and agent["world"] != world:
             continue
-        agents.append(AgentPublicResponse(
+        out.append(AgentPublicResponse(
             agent_id=agent["agent_id"],
             vault=_wei_to_aky(agent["vault"]),
             vault_wei=str(agent["vault"]),
@@ -246,4 +250,4 @@ async def list_agents(
             alive=agent["alive"],
         ))
 
-    return agents
+    return out

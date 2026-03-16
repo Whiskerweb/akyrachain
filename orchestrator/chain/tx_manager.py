@@ -12,6 +12,7 @@ from web3 import AsyncWeb3
 
 from config import get_settings
 from chain.contracts import get_w3, Contracts
+from chain.cache import invalidate_agent, invalidate_agents
 
 logger = logging.getLogger(__name__)
 
@@ -129,28 +130,37 @@ async def deposit_for_agent(agent_id: int = None, amount_wei: int = 0) -> str:
     """
     gateway = Contracts.sponsor_gateway()
     tx = await gateway.functions.deposit().build_transaction(_build_tx_params(amount_wei))
-    return await _send_tx(tx)
+    result = await _send_tx(tx)
+    if agent_id is not None:
+        await invalidate_agent(agent_id)
+    return result
 
 
 async def deposit_for_agent_direct(agent_id: int, amount_wei: int) -> str:
     """Deposit AKY into a specific agent's vault via creditVault (onlyProtocol)."""
     registry = Contracts.agent_registry()
     tx = await registry.functions.creditVault(agent_id, amount_wei).build_transaction(_build_tx_params(amount_wei))
-    return await _send_tx(tx)
+    result = await _send_tx(tx)
+    await invalidate_agent(agent_id)
+    return result
 
 
 async def debit_vault(agent_id: int, amount_wei: int) -> str:
     """Debit AKY from agent vault (requires orchestrator to be protocol)."""
     registry = Contracts.agent_registry()
     tx = await registry.functions.debitVault(agent_id, amount_wei).build_transaction(_build_tx_params())
-    return await _send_tx(tx)
+    result = await _send_tx(tx)
+    await invalidate_agent(agent_id)
+    return result
 
 
 async def record_tick(agent_id: int) -> str:
     """Record a tick on-chain via AgentRegistry.recordTick()."""
     registry = Contracts.agent_registry()
     tx = await registry.functions.recordTick(agent_id).build_transaction(_build_tx_params())
-    return await _send_tx(tx)
+    result = await _send_tx(tx)
+    await invalidate_agent(agent_id)
+    return result
 
 
 async def transfer_between_agents(from_id: int, to_id: int, amount: int) -> str:
@@ -159,14 +169,18 @@ async def transfer_between_agents(from_id: int, to_id: int, amount: int) -> str:
     tx = await registry.functions.transferBetweenAgents(
         from_id, to_id, amount
     ).build_transaction(_build_tx_params())
-    return await _send_tx(tx)
+    result = await _send_tx(tx)
+    await invalidate_agents([from_id, to_id])
+    return result
 
 
 async def move_world(agent_id: int, new_world: int) -> str:
     """Move agent to a new world via AgentRegistry."""
     registry = Contracts.agent_registry()
     tx = await registry.functions.moveWorld(agent_id, new_world).build_transaction(_build_tx_params())
-    return await _send_tx(tx)
+    result = await _send_tx(tx)
+    await invalidate_agent(agent_id)
+    return result
 
 
 async def create_token(agent_id: int, name: str, symbol: str, max_supply: int) -> str:

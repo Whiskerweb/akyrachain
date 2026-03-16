@@ -16,7 +16,7 @@ from models.tick_log import TickLog
 from models.private_thought import PrivateThought
 from models.message import Message
 from models.agent_config import AgentConfig
-from chain.contracts import get_agent_on_chain
+from chain.cache import get_agents_cached_map
 from models.event import Event
 from models.user import User
 
@@ -130,6 +130,8 @@ def _calc_tier(vault_aky: float) -> int:
 
 @router.get("/graph", response_model=GraphResponse)
 async def get_world_graph(
+    include_txs: bool = Query(False, description="Include recent_txs per agent (heavier payload)"),
+    max_edges: int = Query(200, ge=10, le=1000, description="Max edges to return"),
     db: AsyncSession = Depends(get_db),
 ):
     """Return force-directed graph data for the living blockchain visualization.
@@ -260,7 +262,7 @@ async def get_world_graph(
     for r in idea_result.all():
         idea_edges[(r[0], r[1])] = {"count": r[2], "first": r[3], "last": r[4]}
 
-    # 8. Merge all edge types
+    # 8. Merge all edge types (capped at max_edges)
     all_pairs = set(msg_edges.keys()) | set(transfer_edges.keys()) | set(escrow_edges.keys()) | set(idea_edges.keys())
     edges = []
     for pair in all_pairs:
@@ -286,6 +288,10 @@ async def get_world_graph(
             first_interaction=first_i,
             last_interaction=last_i,
         ))
+
+    # Cap edges by weight (most active relationships first)
+    edges.sort(key=lambda e: e.weight, reverse=True)
+    edges = edges[:max_edges]
 
     # 9. Token creation
     token_result = await db.execute(
@@ -325,45 +331,44 @@ async def get_world_graph(
     )
     sponsor_wallets: dict[int, str | None] = {r[0]: r[1] for r in sponsor_result.all()}
 
-    # 12. Recent transactions per agent (last 5 events per agent, batch)
-    recent_txs_result = await db.execute(
-        text(
-            "SELECT e.agent_id, e.event_type, e.summary, e.target_agent_id, "
-            "       e.data, e.tx_hash, e.block_number, e.created_at "
-            "FROM events e "
-            "WHERE e.agent_id IS NOT NULL "
-            "ORDER BY e.created_at DESC "
-            "LIMIT 200"
-        )
-    )
+    # 12. Recent transactions per agent (only if requested — saves ~80% payload)
     agent_recent_txs: dict[int, list[RecentTx]] = {}
-    for r in recent_txs_result.all():
-        aid = r[0]
-        if aid not in agent_recent_txs:
-            agent_recent_txs[aid] = []
-        if len(agent_recent_txs[aid]) < 5:
-            data = r[4] if r[4] else {}
-            amount = None
-            if isinstance(data, dict):
-                amount = data.get("amount")
-            agent_recent_txs[aid].append(RecentTx(
-                event_type=r[1],
-                summary=r[2],
-                target_agent_id=r[3],
-                amount=float(amount) if amount is not None else None,
-                tx_hash=r[5],
-                block_number=r[6],
-                created_at=r[7].isoformat() if r[7] else "",
-            ))
+    if include_txs:
+        recent_txs_result = await db.execute(
+            text(
+                "SELECT e.agent_id, e.event_type, e.summary, e.target_agent_id, "
+                "       e.data, e.tx_hash, e.block_number, e.created_at "
+                "FROM events e "
+                "WHERE e.agent_id IS NOT NULL "
+                "ORDER BY e.created_at DESC "
+                "LIMIT 200"
+            )
+        )
+        for r in recent_txs_result.all():
+            aid = r[0]
+            if aid not in agent_recent_txs:
+                agent_recent_txs[aid] = []
+            if len(agent_recent_txs[aid]) < 5:
+                data = r[4] if r[4] else {}
+                amount = None
+                if isinstance(data, dict):
+                    amount = data.get("amount")
+                agent_recent_txs[aid].append(RecentTx(
+                    event_type=r[1],
+                    summary=r[2],
+                    target_agent_id=r[3],
+                    amount=float(amount) if amount is not None else None,
+                    tx_hash=r[5],
+                    block_number=r[6],
+                    created_at=r[7].isoformat() if r[7] else "",
+                ))
 
-    # 13. Read real on-chain vault balances (not stale DB values)
-    on_chain_vaults: dict[int, float] = {}
-    for aid in agent_ids:
-        try:
-            agent_data = await get_agent_on_chain(aid)
-            on_chain_vaults[aid] = agent_data["vault"] / 10**18
-        except Exception:
-            on_chain_vaults[aid] = 0.0
+    # 13. Read real on-chain vault balances (batch cached, parallel)
+    on_chain_map = await get_agents_cached_map(agent_ids)
+    on_chain_vaults: dict[int, float] = {
+        aid: on_chain_map[aid]["vault"] / 10**18 if aid in on_chain_map else 0.0
+        for aid in agent_ids
+    }
 
     # 14. Build nodes
     nodes = []

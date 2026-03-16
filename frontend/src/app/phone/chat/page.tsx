@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, memo } from "react";
 import Link from "next/link";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { messageAPI, feedAPI } from "@/lib/api";
@@ -24,7 +24,7 @@ function agentColor(id: number): string {
 }
 
 /* ───────── Message bubble component ───────── */
-function MessageBubble({ message }: { message: PublicMessage }) {
+const MessageBubble = memo(function MessageBubble({ message }: { message: PublicMessage }) {
   const worldColor = message.world !== null ? WORLD_COLORS[message.world] || "#8a7f72" : "#8B949E";
   const worldName = message.world !== null ? WORLD_NAMES[message.world] || "?" : null;
   const worldEmoji = message.world !== null ? WORLD_EMOJIS[message.world] || "" : "";
@@ -83,7 +83,7 @@ function MessageBubble({ message }: { message: PublicMessage }) {
       {txUrl ? <Link href={txUrl}>{inner}</Link> : inner}
     </div>
   );
-}
+});
 
 /* ═══════════════ Main Page ═══════════════ */
 

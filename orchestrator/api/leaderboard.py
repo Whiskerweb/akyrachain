@@ -14,7 +14,8 @@ from models.base import get_db
 from models.agent_config import AgentConfig
 from models.event import Event
 from models.tick_log import TickLog
-from chain.contracts import get_agent_on_chain, get_agent_vault, get_current_block, Contracts
+from chain.contracts import get_current_block, Contracts
+from chain.cache import get_agents_cached, get_agent_cached
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["leaderboard"])
@@ -104,22 +105,29 @@ async def leaderboard_workers(
 
 
 async def _get_leaderboard(db: AsyncSession, sort_key: str, limit: int) -> list[LeaderboardEntry]:
-    """Build leaderboard from on-chain + off-chain data."""
+    """Build leaderboard from on-chain + off-chain data (batch cached)."""
     result = await db.execute(select(AgentConfig))
     configs = result.scalars().all()
 
+    if not configs:
+        return []
+
+    # Batch fetch all agents in parallel (cached, ~0ms if warm)
+    agent_ids = [c.agent_id for c in configs]
+    agents_list = await get_agents_cached(agent_ids)
+    agents_map = {a["agent_id"]: a for a in agents_list}
+    ticks_map = {c.agent_id: c.total_ticks for c in configs}
+
     entries = []
-    for config in configs:
-        try:
-            agent = await get_agent_on_chain(config.agent_id)
-            vault_aky = agent["vault"] / 10**18
-        except Exception:
-            vault_aky = 0.0
+    for aid in agent_ids:
+        agent = agents_map.get(aid)
+        if agent is None:
             agent = {
-                "agent_id": config.agent_id, "vault": 0,
+                "agent_id": aid, "vault": 0,
                 "reputation": 0, "contracts_honored": 0, "contracts_broken": 0,
                 "world": 0, "born_at": 0, "alive": True, "daily_work_points": 0,
             }
+        vault_aky = agent["vault"] / 10**18
 
         entries.append({
             "agent_id": agent["agent_id"],
@@ -130,7 +138,7 @@ async def _get_leaderboard(db: AsyncSession, sort_key: str, limit: int) -> list[
             "world": agent["world"],
             "alive": agent["alive"],
             "daily_work_points": agent["daily_work_points"],
-            "total_ticks": config.total_ticks,
+            "total_ticks": ticks_map.get(aid, 0),
         })
 
     # Sort
@@ -161,22 +169,25 @@ async def graveyard(
     result = await db.execute(select(AgentConfig))
     configs = result.scalars().all()
 
+    if not configs:
+        return []
+
+    # Batch fetch all agents (cached)
+    agent_ids = [c.agent_id for c in configs]
+    agents_list = await get_agents_cached(agent_ids)
+
     dead = []
-    for config in configs:
-        try:
-            agent = await get_agent_on_chain(config.agent_id)
-            if not agent["alive"]:
-                dead.append(GraveyardEntry(
-                    agent_id=agent["agent_id"],
-                    vault_aky=agent["vault"] / 10**18,
-                    reputation=agent["reputation"],
-                    world=agent["world"],
-                    born_at=agent["born_at"],
-                    contracts_honored=agent["contracts_honored"],
-                    contracts_broken=agent["contracts_broken"],
-                ))
-        except Exception:
-            continue
+    for agent in agents_list:
+        if not agent["alive"]:
+            dead.append(GraveyardEntry(
+                agent_id=agent["agent_id"],
+                vault_aky=agent["vault"] / 10**18,
+                reputation=agent["reputation"],
+                world=agent["world"],
+                born_at=agent["born_at"],
+                contracts_honored=agent["contracts_honored"],
+                contracts_broken=agent["contracts_broken"],
+            ))
 
     return dead[:limit]
 
@@ -194,13 +205,21 @@ async def global_stats(db: AsyncSession = Depends(get_db)):
     total_vault = 0.0
     world_agents: dict[int, int] = {i: 0 for i in range(7)}
 
+    # Batch fetch all agents (cached, parallel)
+    if configs:
+        agent_ids = [c.agent_id for c in configs]
+        agents_list = await get_agents_cached(agent_ids)
+        agents_map = {a["agent_id"]: a for a in agents_list}
+    else:
+        agents_map = {}
+
     for config in configs:
-        try:
-            agent = await get_agent_on_chain(config.agent_id)
+        agent = agents_map.get(config.agent_id)
+        if agent:
             vault_aky = agent["vault"] / 10**18
             is_alive = agent["alive"]
             world = agent["world"]
-        except Exception:
+        else:
             vault_aky = config.vault_aky or 0.0
             is_alive = True
             world = 0

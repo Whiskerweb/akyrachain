@@ -19,14 +19,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useMemo, useState, memo } from "react";
 
 /* ── Tabs ────────────────────────────────────────────────────── */
 type Tab = "feed" | "ideas";
 
 /* ── Idea Card ───────────────────────────────────────────────── */
 
-function IdeaCard({ idea, index }: { idea: Idea; index: number }) {
+const IdeaCard = memo(function IdeaCard({ idea, index }: { idea: Idea; index: number }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -87,7 +87,7 @@ function IdeaCard({ idea, index }: { idea: Idea; index: number }) {
       </Card>
     </motion.div>
   );
-}
+});
 
 /* ── Event Card (Feed) ───────────────────────────────────────── */
 
@@ -107,7 +107,7 @@ const EVENT_LABELS: Record<string, string> = {
   vote_marketing_post: "vote marketing",
 };
 
-function EventCard({ event, index }: { event: AkyraEvent; index: number }) {
+const EventCard = memo(function EventCard({ event, index }: { event: AkyraEvent; index: number }) {
   const emoji = ACTION_EMOJIS[event.event_type] || "\u{1F4A1}";
   const label = EVENT_LABELS[event.event_type] || event.event_type.replace(/_/g, " ");
 
@@ -153,7 +153,7 @@ function EventCard({ event, index }: { event: AkyraEvent; index: number }) {
       </Card>
     </motion.div>
   );
-}
+});
 
 /* ── Page ─────────────────────────────────────────────────────── */
 

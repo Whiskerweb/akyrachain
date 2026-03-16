@@ -318,7 +318,7 @@ export default function AgentProfilePage({ params }: { params: { id: string } })
     abi: AGENT_REGISTRY_ABI,
     functionName: "getAgent",
     args: [agentId],
-    query: { enabled: agentId > 0 },
+    query: { enabled: agentId > 0, staleTime: 30_000 },
   });
 
   if (isLoading) return <LoadingSkeleton />;
