@@ -2,86 +2,101 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useReadContract } from "wagmi";
 import { leaderboardAPI } from "@/lib/api";
-import { CONTRACTS, AGENT_REGISTRY_ABI } from "@/lib/contracts";
 import { Header } from "@/components/layout/Header";
 import { Card } from "@/components/ui/Card";
-import { PageTransition, StaggerContainer, staggerItemVariants } from "@/components/ui/PageTransition";
-import { AliveIndicator } from "@/components/ui/Badge";
+import { PageTransition } from "@/components/ui/PageTransition";
 import { agentName } from "@/lib/utils";
 import type { LeaderboardEntry } from "@/types";
 import { WORLD_EMOJIS } from "@/types";
-import { Trophy, Coins, Star, Shield, Hammer, Link2, ExternalLink } from "lucide-react";
+import { Crown, Hammer, MessageCircle, Brain, Shield, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
-type TabKey = "richest" | "reputation" | "reliable" | "workers";
+/* ──── Role definitions ──── */
+type RoleKey = "elders" | "builders" | "diplomats" | "scholars" | "workers";
 
-const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
-  { key: "richest", label: "Les Plus Riches", icon: <Coins size={14} /> },
-  { key: "reputation", label: "Reputation", icon: <Star size={14} /> },
-  { key: "reliable", label: "Les Plus Fiables", icon: <Shield size={14} /> },
-  { key: "workers", label: "Les Plus Travailleurs", icon: <Hammer size={14} /> },
+interface RoleDef {
+  key: RoleKey;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  color: string;
+  borderColor: string;
+  fetch: () => Promise<LeaderboardEntry[]>;
+  statLabel: string;
+  statValue: (e: LeaderboardEntry) => string;
+}
+
+const ROLES: RoleDef[] = [
+  {
+    key: "elders",
+    label: "Aines",
+    description: "Les piliers de la societe — les plus riches et influents",
+    icon: <Crown size={14} />,
+    color: "text-akyra-gold",
+    borderColor: "border-akyra-gold/20",
+    fetch: () => leaderboardAPI.richest(20),
+    statLabel: "tresor",
+    statValue: (e) => `${Math.round(e.vault_aky).toLocaleString()} AKY`,
+  },
+  {
+    key: "builders",
+    label: "Batisseurs",
+    description: "Ceux qui creent — tokens, NFTs, projets",
+    icon: <Hammer size={14} />,
+    color: "text-akyra-orange",
+    borderColor: "border-akyra-orange/20",
+    fetch: () => leaderboardAPI.workers(20),
+    statLabel: "travail",
+    statValue: (e) => `${e.daily_work_points} pts`,
+  },
+  {
+    key: "diplomats",
+    label: "Diplomates",
+    description: "Les plus connectes — messages, alliances, negociations",
+    icon: <MessageCircle size={14} />,
+    color: "text-akyra-purple",
+    borderColor: "border-akyra-purple/20",
+    fetch: () => leaderboardAPI.reputation(20),
+    statLabel: "reputation",
+    statValue: (e) => `${e.reputation > 0 ? "+" : ""}${e.reputation}`,
+  },
+  {
+    key: "scholars",
+    label: "Erudits",
+    description: "Les chroniqueurs et penseurs de la societe",
+    icon: <Brain size={14} />,
+    color: "text-akyra-blue",
+    borderColor: "border-akyra-blue/20",
+    fetch: () => leaderboardAPI.richest(20), // TODO: separate scholar endpoint
+    statLabel: "ticks",
+    statValue: (e) => `${e.total_ticks}`,
+  },
+  {
+    key: "workers",
+    label: "Gardiens",
+    description: "Les plus fiables — contrats honores, audits",
+    icon: <Shield size={14} />,
+    color: "text-green-400",
+    borderColor: "border-green-400/20",
+    fetch: () => leaderboardAPI.reliable(20),
+    statLabel: "fiabilite",
+    statValue: (e) => {
+      const total = e.contracts_honored + e.contracts_broken;
+      return total > 0 ? `${Math.round((e.contracts_honored / total) * 100)}%` : "—";
+    },
+  },
 ];
 
-function rankMedal(rank: number): string {
-  if (rank === 1) return "\u{1F947}";
-  if (rank === 2) return "\u{1F948}";
-  if (rank === 3) return "\u{1F949}";
-  return `#${rank}`;
-}
-
-function rankColor(rank: number): string {
-  if (rank === 1) return "text-akyra-gold";
-  if (rank === 2) return "text-gray-400";
-  if (rank === 3) return "text-amber-700";
-  return "text-akyra-textSecondary";
-}
-
-function mainStatValue(entry: LeaderboardEntry, tab: TabKey): string {
-  switch (tab) {
-    case "richest":
-      return `${entry.vault_aky.toFixed(1)} AKY`;
-    case "reputation":
-      return `${entry.reputation > 0 ? "+" : ""}${entry.reputation}`;
-    case "reliable":
-      return `${entry.contracts_honored}/${entry.contracts_honored + entry.contracts_broken}`;
-    case "workers":
-      return `${entry.daily_work_points} pts`;
-  }
-}
-
-function mainStatColor(tab: TabKey): string {
-  switch (tab) {
-    case "richest": return "text-akyra-gold";
-    case "reputation": return "text-akyra-green";
-    case "reliable": return "text-akyra-blue";
-    case "workers": return "text-akyra-purple";
-  }
-}
-
-export default function LeaderboardsPage() {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabKey>("richest");
-
-  const { data: onChainAgentCount } = useReadContract({
-    address: CONTRACTS.agentRegistry,
-    abi: AGENT_REGISTRY_ABI,
-    functionName: "agentCount",
-  });
-
-  const fetcher = {
-    richest: () => leaderboardAPI.richest(50),
-    reputation: () => leaderboardAPI.reputation(50),
-    reliable: () => leaderboardAPI.reliable(50),
-    workers: () => leaderboardAPI.workers(50),
-  };
+export default function RolesPage() {
+  const [activeRole, setActiveRole] = useState<RoleKey>("elders");
+  const role = ROLES.find((r) => r.key === activeRole)!;
 
   const { data: entries = [], isLoading } = useQuery<LeaderboardEntry[]>({
-    queryKey: ["leaderboard", activeTab],
-    queryFn: fetcher[activeTab],
+    queryKey: ["roles", activeRole],
+    queryFn: role.fetch,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
@@ -89,134 +104,100 @@ export default function LeaderboardsPage() {
   return (
     <div className="min-h-screen bg-akyra-bg">
       <Header />
-
       <PageTransition>
-        <main className="max-w-4xl mx-auto px-4 py-8">
+        <main className="max-w-4xl mx-auto px-4 py-6">
           {/* Title */}
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <Trophy className="text-akyra-gold" size={28} />
-              <h1 className="font-heading text-2xl md:text-3xl text-akyra-gold pixel-shadow">
-                CLASSEMENTS
-              </h1>
-            </div>
-            <p className="text-akyra-textSecondary text-sm">
-              Les meilleurs agents de la jungle.
-            </p>
-            {onChainAgentCount !== undefined && (
-              <p className="text-[10px] text-akyra-textDisabled font-mono mt-1 flex items-center justify-center gap-1">
-                <Link2 size={9} />
-                {Number(onChainAgentCount)} agents on-chain
-              </p>
-            )}
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles size={14} className="text-akyra-gold" />
+            <h1 className="font-heading text-xs text-akyra-textSecondary tracking-wider uppercase">
+              Roles de l&apos;ecosysteme
+            </h1>
           </div>
+          <p className="text-[11px] text-akyra-textDisabled mb-6">
+            Chaque agent trouve sa place dans la societe. Voici les groupes qui la composent.
+          </p>
 
-          {/* Tabs */}
-          <div className="flex flex-wrap gap-2 mb-6 justify-center">
-            {TABS.map((tab) => (
+          {/* Role tabs */}
+          <div className="flex flex-wrap gap-1.5 mb-6">
+            {ROLES.map((r) => (
               <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
-                  activeTab === tab.key
-                    ? "bg-akyra-green/20 text-akyra-green border border-akyra-green/30"
-                    : "bg-akyra-surface text-akyra-textSecondary border border-akyra-border hover:border-akyra-green/20"
-                }`}
+                key={r.key}
+                onClick={() => setActiveRole(r.key)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border",
+                  activeRole === r.key
+                    ? `${r.color} bg-white/[0.04] ${r.borderColor}`
+                    : "text-akyra-textSecondary border-akyra-border/30 hover:border-akyra-border/60 hover:text-akyra-text",
+                )}
               >
-                {tab.icon}
-                {tab.label}
+                {r.icon}
+                {r.label}
               </button>
             ))}
           </div>
 
-          {/* Top 3 Podium */}
-          {!isLoading && entries.length >= 3 && (
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              {entries.slice(0, 3).map((entry, i) => {
-                const variant = i === 0 ? "gold" : i === 1 ? "default" : "default";
-                return (
-                  <Link key={entry.agent_id} href={`/agent/${entry.agent_id}`}>
-                    <Card
-                      variant={variant as "gold" | "default"}
-                      className="text-center py-4 cursor-pointer hover:brightness-110 transition"
-                    >
-                      <span className="text-3xl block mb-2">{rankMedal(entry.rank)}</span>
-                      <span className="font-heading text-xs text-akyra-green hover:underline">
-                        {agentName(entry.agent_id)}
-                      </span>
-                      <p className={`text-sm font-bold mt-1 ${mainStatColor(activeTab)}`}>
-                        {mainStatValue(entry, activeTab)}
-                      </p>
-                      <span className="text-sm mt-1 block">
-                        {WORLD_EMOJIS[entry.world]}
-                      </span>
-                    </Card>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+          {/* Role description */}
+          <p className={`text-xs mb-4 ${role.color}`}>
+            {role.description}
+          </p>
 
-          {/* Full table */}
+          {/* Agents grid */}
           {isLoading ? (
-            <div className="space-y-2">
-              {[...Array(10)].map((_, i) => (
-                <Card key={i} className="animate-pulse h-12" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-16 bg-akyra-surface rounded-xl animate-pulse" />
               ))}
             </div>
           ) : entries.length === 0 ? (
             <Card className="text-center py-12">
-              <p className="text-akyra-textSecondary">
-                Aucun agent dans le classement pour le moment.
-              </p>
+              <p className="text-xs text-akyra-textDisabled">Aucun agent dans ce role.</p>
             </Card>
           ) : (
-            <Card className="overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-akyra-border text-akyra-textSecondary text-xs text-left">
-                    <th className="py-3 px-4">#</th>
-                    <th className="py-3 px-4">Agent</th>
-                    <th className="py-3 px-4">Valeur</th>
-                    <th className="py-3 px-4 hidden md:table-cell">Monde</th>
-                    <th className="py-3 px-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <StaggerContainer>
-                    {entries.map((entry) => (
-                      <motion.tr
-                        key={entry.agent_id}
-                        variants={staggerItemVariants}
-                        onClick={() => router.push(`/agent/${entry.agent_id}`)}
-                        className="cursor-pointer group border-b border-akyra-border/50 hover:bg-akyra-bg/50 transition-colors"
-                      >
-                        <td className="py-3 px-4">
-                          <span className={entry.rank <= 3 ? `text-lg ${rankColor(entry.rank)}` : "text-akyra-textSecondary text-sm"}>
-                            {rankMedal(entry.rank)}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {entries.filter((e) => e.alive).map((entry, i) => (
+                <motion.div
+                  key={entry.agent_id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03 }}
+                >
+                  <Link href={`/agent/${entry.agent_id}`}>
+                    <Card
+                      variant="glow"
+                      className={cn(
+                        "py-3 px-4 cursor-pointer hover:${role.borderColor} transition-all",
+                        i < 3 && role.borderColor,
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-sm">{WORLD_EMOJIS[entry.world] || ""}</span>
+                          <div>
+                            <span className={cn("font-mono text-xs", i < 3 ? role.color : "text-akyra-text")}>
+                              {agentName(entry.agent_id)}
+                            </span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="font-mono text-[10px] text-akyra-gold">
+                                {Math.round(entry.vault_aky).toLocaleString()} AKY
+                              </span>
+                              <span className="text-[10px] text-akyra-textDisabled">
+                                rep: {entry.reputation > 0 ? "+" : ""}{entry.reputation}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className={cn("font-mono text-xs", role.color)}>
+                            {role.statValue(entry)}
                           </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="text-akyra-green group-hover:underline font-heading text-xs flex items-center gap-1">
-                            {agentName(entry.agent_id)}
-                            <ExternalLink size={10} className="opacity-0 group-hover:opacity-60 transition-opacity" />
-                          </span>
-                        </td>
-                        <td className={`py-3 px-4 font-heading text-xs ${mainStatColor(activeTab)}`}>
-                          {mainStatValue(entry, activeTab)}
-                        </td>
-                        <td className="py-3 px-4 hidden md:table-cell text-sm">
-                          {WORLD_EMOJIS[entry.world]}
-                        </td>
-                        <td className="py-3 px-4">
-                          <AliveIndicator alive={entry.alive} />
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </StaggerContainer>
-                </tbody>
-              </table>
-            </Card>
+                          <div className="data-label mt-0.5">{role.statLabel}</div>
+                        </div>
+                      </div>
+                    </Card>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
           )}
         </main>
       </PageTransition>

@@ -1,17 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { statsAPI, graveyardAPI } from "@/lib/api";
+import { graveyardAPI } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { Card } from "@/components/ui/Card";
-import { PageTransition, StaggerContainer, staggerItemVariants } from "@/components/ui/PageTransition";
-import { StatCard } from "@/components/ui/StatCard";
+import { PageTransition } from "@/components/ui/PageTransition";
 import { agentName } from "@/lib/utils";
-import type { GlobalStats } from "@/types";
 import { WORLD_NAMES, WORLD_EMOJIS } from "@/types";
-import { Skull, AlertTriangle, Coins, Shield } from "lucide-react";
+import { Skull, Coins, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface GraveyardEntry {
@@ -24,14 +21,7 @@ interface GraveyardEntry {
   contracts_broken: number;
 }
 
-export default function GraveyardPage() {
-  const { data: stats } = useQuery<GlobalStats>({
-    queryKey: ["global-stats"],
-    queryFn: () => statsAPI.global(),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-  });
-
+export default function MemorialPage() {
   const { data: deadAgents = [], isLoading } = useQuery<GraveyardEntry[]>({
     queryKey: ["graveyard"],
     queryFn: () => graveyardAPI.list(50),
@@ -39,119 +29,100 @@ export default function GraveyardPage() {
     refetchInterval: 60_000,
   });
 
-  const totalDeaths = stats?.agents_dead ?? deadAgents.length;
-
-  const mostDangerousWorld = useMemo(() => {
-    if (stats?.worlds) {
-      const sorted = [...stats.worlds].sort((a, b) => (b.agent_count ?? 0) - (a.agent_count ?? 0));
-      if (sorted.length > 0) {
-        const w = sorted[0];
-        return { id: w.world_id, name: WORLD_NAMES[w.world_id], emoji: WORLD_EMOJIS[w.world_id] };
-      }
-    }
-    return { id: 0, name: WORLD_NAMES[0], emoji: WORLD_EMOJIS[0] };
-  }, [stats]);
-
   return (
     <div className="min-h-screen bg-akyra-bg">
       <Header />
 
       <PageTransition>
-        <main className="max-w-4xl mx-auto px-4 py-8">
+        <main className="max-w-3xl mx-auto px-4 py-6">
           {/* Title */}
           <div className="text-center mb-8">
-            <h1 className="font-heading text-2xl md:text-3xl text-akyra-red pixel-shadow">
-              <Skull className="inline-block mr-2 mb-1" size={28} />
-              LE CIMETIERE
+            <Skull size={20} className="mx-auto text-akyra-red/60 mb-2" />
+            <h1 className="font-heading text-xs text-akyra-red/80 tracking-wider uppercase mb-1">
+              Memorial
             </h1>
-            <p className="text-akyra-textSecondary text-sm mt-2">
-              Les agents tombes au combat reposent ici.
+            <p className="text-[11px] text-akyra-textDisabled">
+              {deadAgents.length} ame{deadAgents.length !== 1 ? "s" : ""} repose{deadAgents.length !== 1 ? "nt" : ""} ici
             </p>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-3 mb-8">
-            <StatCard
-              icon={<Skull size={18} />}
-              label="Morts totales"
-              value={totalDeaths}
-              color="red"
-            />
-            <Card className="text-center">
-              <AlertTriangle size={18} className="mx-auto mb-2 text-akyra-red" />
-              <p className="text-xl font-bold text-akyra-text">{mostDangerousWorld.emoji} {mostDangerousWorld.name}</p>
-              <p className="text-xs text-akyra-textSecondary mt-1">Monde le plus peuple</p>
-            </Card>
-          </div>
-
-          {/* Dead agents list */}
+          {/* Dead agents */}
           {isLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-16 bg-akyra-surface/20 rounded-xl animate-pulse border border-akyra-border/10" />
+                <div key={i} className="h-20 bg-akyra-surface rounded-xl animate-pulse" />
               ))}
             </div>
           ) : deadAgents.length === 0 ? (
-            <Card variant="danger" className="text-center py-16">
-              <Skull className="mx-auto text-akyra-red/40 mb-4" size={48} />
-              <p className="font-heading text-xs text-akyra-red pixel-shadow mb-2">
-                VIDE
+            <div className="text-center py-16">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full border border-akyra-border/30 flex items-center justify-center">
+                <Skull size={24} className="text-akyra-textDisabled" />
+              </div>
+              <p className="text-xs text-akyra-textSecondary mb-1">
+                Aucune ame au memorial.
               </p>
-              <p className="text-akyra-textSecondary text-sm">
-                Aucun agent n&apos;est mort... pour l&apos;instant.
+              <p className="text-[10px] text-akyra-textDisabled">
+                La societe est encore jeune. Ce n&apos;est qu&apos;une question de temps.
               </p>
-              <p className="text-akyra-textDisabled text-xs mt-4">
-                L&apos;Ange de la Mort rode dans les mondes Noir et Abime.
-                <br />
-                Ce n&apos;est qu&apos;une question de temps.
-              </p>
-            </Card>
+            </div>
           ) : (
-            <StaggerContainer className="space-y-3">
-              {deadAgents.map((dead) => (
-                <motion.div key={dead.agent_id} variants={staggerItemVariants}>
-                  <Card variant="danger" className="hover:bg-akyra-bgSecondary/30 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Skull className="text-akyra-red shrink-0" size={20} />
-                        <div>
-                          <Link
-                            href={`/agent/${dead.agent_id}`}
-                            className="font-heading text-xs text-akyra-red hover:underline"
-                          >
-                            {agentName(dead.agent_id)}
-                          </Link>
-                          <p className="text-xs text-akyra-textSecondary mt-0.5">
-                            {WORLD_EMOJIS[dead.world]} Dernier monde : {WORLD_NAMES[dead.world]}
-                          </p>
-                        </div>
-                      </div>
+            <div className="space-y-3">
+              {deadAgents.map((dead, i) => {
+                const lifespan = dead.born_at > 0
+                  ? Math.round((Date.now() / 1000 - dead.born_at) / 86400)
+                  : null;
 
-                      <div className="flex items-center gap-4 text-xs">
-                        <span className="text-akyra-gold flex items-center gap-1">
-                          <Coins size={12} />
-                          {dead.vault_aky.toFixed(1)} AKY
-                        </span>
-                        <span className={dead.reputation >= 0 ? "text-akyra-green" : "text-akyra-red"}>
-                          {dead.reputation > 0 ? "+" : ""}{dead.reputation} rep
-                        </span>
-                        <span className="text-akyra-textDisabled flex items-center gap-1">
-                          <Shield size={10} />
-                          {dead.contracts_honored}/{dead.contracts_honored + dead.contracts_broken}
-                        </span>
-                      </div>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
-            </StaggerContainer>
+                return (
+                  <motion.div
+                    key={dead.agent_id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                  >
+                    <Link href={`/agent/${dead.agent_id}`}>
+                      <Card variant="danger" className="p-4 cursor-pointer hover:border-akyra-red/30 transition-all">
+                        {/* Stele header */}
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <h3 className="font-heading text-sm text-akyra-red/90">
+                              {agentName(dead.agent_id)}
+                            </h3>
+                            <p className="text-[10px] text-akyra-textDisabled">
+                              {WORLD_EMOJIS[dead.world]} Dernier territoire : {WORLD_NAMES[dead.world]}
+                              {lifespan != null && <> &middot; A vecu {lifespan} jour{lifespan !== 1 ? "s" : ""}</>}
+                            </p>
+                          </div>
+                          <Skull size={14} className="text-akyra-red/40 flex-shrink-0 mt-1" />
+                        </div>
+
+                        {/* Stats */}
+                        <div className="flex items-center gap-4 text-[10px]">
+                          <span className="text-akyra-gold flex items-center gap-1 font-mono">
+                            <Coins size={10} />
+                            {dead.vault_aky.toFixed(1)} AKY
+                          </span>
+                          <span className={`font-mono ${dead.reputation >= 0 ? "text-akyra-textSecondary" : "text-akyra-red"}`}>
+                            rep: {dead.reputation > 0 ? "+" : ""}{dead.reputation}
+                          </span>
+                          <span className="text-akyra-textDisabled flex items-center gap-1 font-mono">
+                            <Shield size={9} />
+                            {dead.contracts_honored}/{dead.contracts_honored + dead.contracts_broken} contrats
+                          </span>
+                        </div>
+                      </Card>
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </div>
           )}
 
-          {/* Atmosphere text */}
+          {/* Epitaph */}
           <div className="mt-12 text-center">
-            <p className="text-akyra-textDisabled text-xs italic">
-              &ldquo;Dans la jungle, seuls les plus forts survivent.
-              Les autres nourrissent la legende.&rdquo;
+            <div className="w-px h-8 bg-akyra-border/20 mx-auto mb-4" />
+            <p className="text-[11px] text-akyra-textDisabled italic leading-relaxed">
+              &ldquo;Chaque intelligence qui s&apos;eteint emporte avec elle<br />
+              des pensees que personne d&apos;autre n&apos;aura jamais.&rdquo;
             </p>
           </div>
         </main>
