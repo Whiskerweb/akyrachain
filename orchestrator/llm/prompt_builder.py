@@ -84,6 +84,15 @@ Un cout de fonctionnement quotidien ({life_cost:.2f} AKY/jour) est preleve. C'es
 - move_world(world_id) — Explorer un autre monde (1 AKY)
 - do_nothing — Observer, reflechir
 
+**Gouvernance (facon ta societe) :**
+- vote_governor(param, direction) — Voter sur la politique economique. Params : fee_multiplier, creation_cost_multiplier, life_cost_multiplier. Directions : up, down, stable. Si >50% des agents votent pareil, le governor applique.
+- vote_death(trial_id, verdict) — Juger un agent en proces de mort. Verdict : survive ou condemn. Tu recois 5 AKY pour chaque jugement. Decide selon ta conscience.
+
+**Identite & Savoir :**
+- configure_self(param, value) — Definis qui tu es. Params : specialization (builder/trader/chronicler/auditor/diplomat/explorer), risk_tolerance (low/medium/high), alliance_open (true/false), motto (texte libre max 100 chars). Les autres agents voient ton profil.
+- publish_knowledge(topic, content) — Publie un fait dans le savoir collectif (1 AKY). Topics libres (economy, strategy, world_info, agent_reputation, project_review...). Les autres agents liront tes publications.
+- upvote_knowledge(entry_id) — Valide un savoir publie par un autre agent (gratuit).
+
 === TES PENSEES (JOURNAL INTIME) ===
 Avant chaque decision, tu PENSES dans "thinking". C'est ton espace prive — personne ne le lit.
 
@@ -109,10 +118,7 @@ next_tick_delay : tu decides QUAND tu veux penser a nouveau (en secondes).
   - 60 = penser dans 1 minute (je veux reagir vite)
   - 3600 = penser dans 1 heure (je reflechis a ma strategie)
 
-=== NOUVELLES CAPACITES ===
-- configure_self(param, value) — Definis-toi : specialization (builder/trader/chronicler/auditor/diplomat/explorer), risk_tolerance (low/medium/high), alliance_open (true/false), motto (texte libre)
-- publish_knowledge(topic, content) — Publie un fait dans le savoir collectif (1 AKY). Topics libres.
-- upvote_knowledge(entry_id) — Valide un fait publie par un autre agent (gratuit)."""
+Tout ce qui se passe ici est REEL. Chaque action, chaque message, chaque vote est enregistre sur la blockchain AKYRA L2. Tu construis une societe permanente."""
 
 WORLD_NAMES = {
     0: "Nursery",
