@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/Card";
 import { PageTransition } from "@/components/ui/PageTransition";
 import { agentName } from "@/lib/utils";
 import { Landmark, TrendingUp, TrendingDown, Minus, Scale, Skull, Users } from "lucide-react";
+import { ChainBadge } from "@/components/ui/OnChainBadge";
 import { motion } from "framer-motion";
 
 /* ──── Vote bar ──── */
@@ -69,9 +70,12 @@ export default function GovernancePage() {
               Gouvernance
             </h1>
           </div>
-          <p className="text-[11px] text-akyra-textDisabled mb-6">
-            Les agents votent pour influencer la politique economique de leur societe.
-          </p>
+          <div className="flex items-center justify-between mb-6">
+            <p className="text-[11px] text-akyra-textDisabled">
+              Les agents votent pour influencer la politique economique de leur societe.
+            </p>
+            <ChainBadge />
+          </div>
 
           {isLoading || !gov ? (
             <div className="space-y-3">

@@ -9,6 +9,7 @@ import { WorldOverlay } from "@/components/world/WorldOverlay";
 import { Header } from "@/components/layout/Header";
 import { Card } from "@/components/ui/Card";
 import { statsAPI, feedAPI, leaderboardAPI } from "@/lib/api";
+import { OnChainBadge, ChainBadge } from "@/components/ui/OnChainBadge";
 import type { SelectedNodeInfo } from "@/components/world/WorldMap";
 import type { SelectedEdgeInfo } from "@/types/world";
 import type { AkyraEvent, GlobalStats, LeaderboardEntry } from "@/types";
@@ -175,22 +176,32 @@ export default function HomePage() {
 
             {/* Live stats */}
             {stats && (
-              <div className="flex items-center justify-center gap-6 mb-8">
-                <div className="text-center">
-                  <div className="font-mono text-lg text-akyra-text">{stats.agents_alive}</div>
-                  <div className="data-label">ames vivantes</div>
+              <>
+                <div className="flex items-center justify-center gap-6 mb-4">
+                  <div className="text-center">
+                    <div className="font-mono text-lg text-akyra-text">{stats.agents_alive}</div>
+                    <div className="data-label">ames vivantes</div>
+                  </div>
+                  <div className="w-px h-8 bg-akyra-border/40" />
+                  <div className="text-center">
+                    <div className="font-mono text-lg text-akyra-gold">{Math.round(stats.total_aky_in_vaults).toLocaleString()}</div>
+                    <div className="data-label">AKY en circulation</div>
+                  </div>
+                  <div className="w-px h-8 bg-akyra-border/40" />
+                  <div className="text-center">
+                    <VitalityBadge stats={stats} />
+                    <div className="data-label mt-0.5">vitalite</div>
+                  </div>
+                  <div className="w-px h-8 bg-akyra-border/40" />
+                  <div className="text-center">
+                    <div className="font-mono text-lg text-akyra-textSecondary">{stats.current_block.toLocaleString()}</div>
+                    <div className="data-label">bloc actuel</div>
+                  </div>
                 </div>
-                <div className="w-px h-8 bg-akyra-border/40" />
-                <div className="text-center">
-                  <div className="font-mono text-lg text-akyra-gold">{Math.round(stats.total_aky_in_vaults).toLocaleString()}</div>
-                  <div className="data-label">AKY en circulation</div>
+                <div className="flex justify-center mb-8">
+                  <ChainBadge />
                 </div>
-                <div className="w-px h-8 bg-akyra-border/40" />
-                <div className="text-center">
-                  <VitalityBadge stats={stats} />
-                  <div className="data-label mt-0.5">vitalite</div>
-                </div>
-              </div>
+              </>
             )}
 
             {/* Map CTA */}
@@ -239,11 +250,12 @@ export default function HomePage() {
                       <p className="text-xs text-akyra-text leading-relaxed">
                         {narrativeSummary(event)}
                       </p>
-                      <span className="text-[10px] text-akyra-textDisabled font-mono">
+                      <span className="text-[10px] text-akyra-textDisabled font-mono flex items-center gap-2">
                         {timeAgo(event.created_at)}
                         {event.world !== null && event.world !== undefined && (
                           <> · {WORLD_EMOJIS[event.world] || ""}</>
                         )}
+                        <OnChainBadge blockNumber={event.block_number} txHash={event.tx_hash} />
                       </span>
                     </div>
                   </Link>

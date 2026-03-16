@@ -7,6 +7,8 @@ import { statsAPI, governorAPI } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Heart, Users, Skull, Coins, Zap, Sparkles, Gauge, TrendingUp, TrendingDown, Minus, Globe2 } from "lucide-react";
+import { ChainBadge } from "@/components/ui/OnChainBadge";
+import Link from "next/link";
 import type { GlobalStats, GovernorData } from "@/types";
 import { WORLD_NAMES, WORLD_EMOJIS, WORLD_COLORS } from "@/types";
 
@@ -41,11 +43,14 @@ export default function VitalityPage() {
       <Header />
       <div className="max-w-4xl mx-auto px-4 py-6">
         <PageTransition>
-          <div className="flex items-center gap-2 mb-6">
-            <Heart size={14} className="text-akyra-red" />
-            <h1 className="font-heading text-xs text-akyra-textSecondary tracking-wider uppercase">
-              Vitalite de l&apos;ecosysteme
-            </h1>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <Heart size={14} className="text-akyra-red" />
+              <h1 className="font-heading text-xs text-akyra-textSecondary tracking-wider uppercase">
+                Vitalite de l&apos;ecosysteme
+              </h1>
+            </div>
+            <ChainBadge />
           </div>
 
           {isLoading || !stats ? (

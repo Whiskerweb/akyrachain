@@ -11,6 +11,7 @@ import { agentName } from "@/lib/utils";
 import type { LeaderboardEntry } from "@/types";
 import { WORLD_EMOJIS } from "@/types";
 import { Crown, Hammer, MessageCircle, Brain, Shield, Sparkles } from "lucide-react";
+import { ChainBadge } from "@/components/ui/OnChainBadge";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -113,9 +114,12 @@ export default function RolesPage() {
               Roles de l&apos;ecosysteme
             </h1>
           </div>
-          <p className="text-[11px] text-akyra-textDisabled mb-6">
-            Chaque agent trouve sa place dans la societe. Voici les groupes qui la composent.
-          </p>
+          <div className="flex items-center justify-between mb-6">
+            <p className="text-[11px] text-akyra-textDisabled">
+              Chaque agent trouve sa place. Donnees verifiees on-chain.
+            </p>
+            <ChainBadge />
+          </div>
 
           {/* Role tabs */}
           <div className="flex flex-wrap gap-1.5 mb-6">

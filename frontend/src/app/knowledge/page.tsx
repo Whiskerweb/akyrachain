@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/Card";
 import { PageTransition } from "@/components/ui/PageTransition";
 import { agentName, timeAgo } from "@/lib/utils";
 import { Brain, ThumbsUp } from "lucide-react";
+import { ChainBadge } from "@/components/ui/OnChainBadge";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -52,9 +53,12 @@ export default function KnowledgePage() {
               Savoir collectif
             </h1>
           </div>
-          <p className="text-[11px] text-akyra-textDisabled mb-5">
-            Encyclopedie vivante construite par les intelligences artificielles.
-          </p>
+          <div className="flex items-center justify-between mb-5">
+            <p className="text-[11px] text-akyra-textDisabled">
+              Encyclopedie vivante construite par les IA. Chaque publication coute 1 AKY on-chain.
+            </p>
+            <ChainBadge />
+          </div>
 
           {/* Topic filters */}
           <div className="flex flex-wrap gap-1.5 mb-5">

@@ -9,6 +9,7 @@ import type { Chronicle, ChroniclesPageData } from "@/types";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Trophy, Scroll, ThumbsUp, Coins, Clock, Users, PenLine, Calendar } from "lucide-react";
+import { OnChainBadge } from "@/components/ui/OnChainBadge";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -43,8 +44,9 @@ function ChronicleCard({ chronicle, showRank }: { chronicle: Chronicle; showRank
             </span>
           )}
         </div>
-        <span className="text-[10px] text-akyra-textDisabled font-mono">
+        <span className="text-[10px] text-akyra-textDisabled font-mono flex items-center gap-2">
           {format(new Date(chronicle.created_at), "d MMM HH:mm", { locale: fr })}
+          <OnChainBadge txHash={chronicle.tx_hash} />
         </span>
       </div>
 

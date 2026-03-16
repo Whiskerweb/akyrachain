@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { memo } from "react";
-import { TxLink, BlockLink } from "@/components/ui/TxLink";
+import { OnChainBadge } from "@/components/ui/OnChainBadge";
 import { agentName, timeAgo } from "@/lib/utils";
 import { ACTION_EMOJIS, WORLD_EMOJIS } from "@/types";
 import type { AkyraEvent } from "@/types";
@@ -102,10 +102,7 @@ const NarrativeEvent = memo(function NarrativeEvent({
           {worldEmoji && (
             <span className="text-[10px] text-akyra-textDisabled">{worldEmoji}</span>
           )}
-          {event.block_number != null && (
-            <BlockLink block={event.block_number} className="text-[10px]" />
-          )}
-          <TxLink hash={event.tx_hash} />
+          <OnChainBadge blockNumber={event.block_number} txHash={event.tx_hash} />
         </div>
       </div>
     </Link>

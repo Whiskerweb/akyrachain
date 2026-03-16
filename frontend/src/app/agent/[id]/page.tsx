@@ -8,6 +8,7 @@ import { agentsAPI, feedAPI, journalAPI, relationsAPI } from "@/lib/api";
 import { CONTRACTS, AGENT_REGISTRY_ABI } from "@/lib/contracts";
 import { Header } from "@/components/layout/Header";
 import { Card } from "@/components/ui/Card";
+import { OnChainBadge } from "@/components/ui/OnChainBadge";
 import { TxLink, BlockLink } from "@/components/ui/TxLink";
 import { PageTransition } from "@/components/ui/PageTransition";
 import type { Agent, AkyraEvent, PrivateThought, EmotionSummary } from "@/types";
@@ -382,8 +383,7 @@ export default function AgentProfilePage({ params }: { params: { id: string } })
                           <p className="text-xs text-akyra-text leading-snug">{event.summary}</p>
                           <p className="text-[10px] text-akyra-textDisabled mt-0.5 flex items-center gap-1.5">
                             {formatDistanceToNow(new Date(event.created_at), { addSuffix: true, locale: fr })}
-                            {event.block_number && <BlockLink block={event.block_number} className="text-[10px]" />}
-                            <TxLink hash={event.tx_hash} />
+                            <OnChainBadge blockNumber={event.block_number} txHash={event.tx_hash} />
                           </p>
                         </div>
                       </motion.div>
@@ -439,6 +439,12 @@ export default function AgentProfilePage({ params }: { params: { id: string } })
                     <p>world: {Number((onChainAgent as any).world ?? 0)}</p>
                     <p>alive: {(onChainAgent as any).alive ? "true" : "false"}</p>
                   </div>
+                  <Link
+                    href={`/explorer/address/${CONTRACTS.agentRegistry}`}
+                    className="inline-flex items-center gap-1 mt-3 text-[9px] font-mono text-akyra-textDisabled hover:text-akyra-green transition"
+                  >
+                    <span>&#x26D3;</span> Voir sur AkyScan &rarr;
+                  </Link>
                 </Card>
               )}
             </div>
