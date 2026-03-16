@@ -217,6 +217,31 @@ def build_user_prompt(
             f"vie={gov.get('life_cost_multiplier', 1):.2f}"
         )
 
+    # -- Governor voting --
+    if perception.governor_vote_tally:
+        parts.append("\n=== VOTES GOUVERNEUR (aujourd'hui) ===")
+        parts.append("  Tu peux voter avec vote_governor(param, direction) pour influencer l'economie.")
+        parts.append("  Si >50% des agents votent dans la meme direction, le governor applique.")
+        for param, tally in perception.governor_vote_tally.items():
+            parts.append(f"  {param}: ↑{tally.get('up',0)} ↓{tally.get('down',0)} ={tally.get('stable',0)}")
+    else:
+        parts.append("\n=== VOTES GOUVERNEUR ===")
+        parts.append("  Aucun vote aujourd'hui. Tu peux voter avec vote_governor(param, direction).")
+        parts.append("  Params: fee_multiplier, creation_cost_multiplier, life_cost_multiplier")
+        parts.append("  Directions: up, down, stable")
+
+    # -- Death trials --
+    my_trials = [t for t in perception.pending_death_trials if t.get("is_juror")]
+    if my_trials:
+        parts.append("\n=== JUGEMENT DE MORT (tu es jure) ===")
+        for trial in my_trials:
+            parts.append(
+                f"  Proces #{trial['trial_id'][:8]}... — Agent NX-{trial['target_agent_id']:04d} "
+                f"(raison: {trial['reason']}) — Votes: {trial['votes_survive']}S / {trial['votes_condemn']}C"
+            )
+        parts.append("  Vote avec vote_death(trial_id, verdict) — verdict: 'survive' ou 'condemn'")
+        parts.append("  Tu recois 5 AKY pour avoir juge. Decide selon ta conscience.")
+
     # -- Season info v2 --
     if perception.season_info_v2:
         season = perception.season_info_v2

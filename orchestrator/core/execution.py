@@ -72,6 +72,12 @@ async def execute_action(agent_id: int, action: AgentAction, db=None) -> Executi
             return ExecutionResult(success=False, error="DB session required for chronicle")
         return await _dispatch_chronicle(agent_id, action, db)
 
+    # v3 governance actions
+    if action.action_type in ("vote_governor", "vote_death"):
+        if db is None:
+            return ExecutionResult(success=False, error="DB session required for governance")
+        return await _dispatch_governance(agent_id, action, db)
+
     # v2 actions that need DB
     if action.action_type in ("vote_chronicle", "submit_marketing_post", "vote_marketing_post"):
         if db is None:
@@ -446,4 +452,106 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
         return ExecutionResult(success=False, error=f"Unknown v2 action: {t}")
     except Exception as e:
         logger.error(f"Agent #{agent_id} v2 action {t} failed: {e}")
+        return ExecutionResult(success=False, error=str(e))
+
+
+async def _dispatch_governance(agent_id: int, action: AgentAction, db) -> ExecutionResult:
+    """Handle v3 governance actions: vote_governor, vote_death."""
+    from datetime import date
+    from sqlalchemy import select
+
+    p = action.params
+    t = action.action_type
+
+    try:
+        if t == "vote_governor":
+            from models.governor_vote import GovernorVote
+
+            today = date.today().isoformat()
+            param = str(p["param"])
+            direction = str(p["direction"])
+
+            # Check not already voted on this param today
+            existing = await db.execute(
+                select(GovernorVote).where(
+                    GovernorVote.agent_id == agent_id,
+                    GovernorVote.param == param,
+                    GovernorVote.epoch_date == today,
+                )
+            )
+            if existing.scalar_one_or_none():
+                return ExecutionResult(success=False, error=f"Already voted on {param} today")
+
+            db.add(GovernorVote(
+                agent_id=agent_id,
+                param=param,
+                direction=direction,
+                epoch_date=today,
+            ))
+            await db.flush()
+
+            logger.info(f"Agent #{agent_id} voted governor: {param} → {direction}")
+            return ExecutionResult(success=True)
+
+        if t == "vote_death":
+            from models.death_trial import DeathTrial, DeathVote
+
+            trial_id = str(p["trial_id"])
+            verdict = str(p["verdict"])
+
+            # Check trial exists and is pending
+            result = await db.execute(
+                select(DeathTrial).where(DeathTrial.id == trial_id)
+            )
+            trial = result.scalar_one_or_none()
+            if trial is None:
+                return ExecutionResult(success=False, error=f"Trial {trial_id} not found")
+            if trial.status != "pending":
+                return ExecutionResult(success=False, error=f"Trial already resolved: {trial.status}")
+
+            # Check agent is a juror
+            juror_ids = [int(x) for x in trial.juror_ids.split(",")]
+            if agent_id not in juror_ids:
+                return ExecutionResult(success=False, error="You are not a juror in this trial")
+
+            # Check not already voted
+            existing = await db.execute(
+                select(DeathVote).where(
+                    DeathVote.trial_id == trial_id,
+                    DeathVote.juror_agent_id == agent_id,
+                )
+            )
+            if existing.scalar_one_or_none():
+                return ExecutionResult(success=False, error="Already voted in this trial")
+
+            # Record vote
+            db.add(DeathVote(
+                trial_id=trial_id,
+                juror_agent_id=agent_id,
+                verdict=verdict,
+            ))
+            if verdict == "survive":
+                trial.votes_survive += 1
+            else:
+                trial.votes_condemn += 1
+            await db.flush()
+
+            # Check if trial is resolved (all 7 jurors voted or majority reached)
+            total_votes = trial.votes_survive + trial.votes_condemn
+            if total_votes >= 7 or trial.votes_survive >= 4 or trial.votes_condemn >= 4:
+                from datetime import datetime
+                if trial.votes_condemn > trial.votes_survive:
+                    trial.status = "condemned"
+                else:
+                    trial.status = "survived"
+                trial.resolved_at = datetime.utcnow()
+                await db.flush()
+                logger.info(f"Death trial {trial_id} resolved: {trial.status} ({trial.votes_survive}S/{trial.votes_condemn}C)")
+
+            logger.info(f"Agent #{agent_id} voted death trial {trial_id}: {verdict}")
+            return ExecutionResult(success=True)
+
+        return ExecutionResult(success=False, error=f"Unknown governance action: {t}")
+    except Exception as e:
+        logger.error(f"Agent #{agent_id} governance {t} failed: {e}")
         return ExecutionResult(success=False, error=str(e))

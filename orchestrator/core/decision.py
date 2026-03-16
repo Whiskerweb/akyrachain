@@ -34,6 +34,9 @@ ACTION_WHITELIST: dict[str, list[str]] = {
     "remove_liquidity": ["token_address", "lp_amount"],
     # Legacy (kept for backward compat during transition)
     "submit_story": ["content"],
+    # v3 Governance actions
+    "vote_governor": ["param", "direction"],
+    "vote_death": ["trial_id", "verdict"],
 }
 
 # Max 20% of vault per transfer
@@ -141,7 +144,30 @@ def parse_decision(raw_content: str, vault_wei: int) -> AgentAction:
         except (ValueError, TypeError):
             raise DecisionError(f"Invalid transfer amount: {params.get('amount')}")
 
-    # 6. Validate world_id range (0-6)
+    # 6. Validate vote_governor params
+    if action_type == "vote_governor":
+        valid_params = ("fee_multiplier", "creation_cost_multiplier", "life_cost_multiplier")
+        valid_dirs = ("up", "down", "stable")
+        param = str(params.get("param", "")).lower()
+        direction = str(params.get("direction", "")).lower()
+        if param not in valid_params:
+            logger.warning(f"Invalid governor param '{param}', defaulting to do_nothing")
+            return AgentAction(action_type="do_nothing", thinking=thinking, message=message, raw_response=raw_content)
+        if direction not in valid_dirs:
+            logger.warning(f"Invalid governor direction '{direction}', defaulting to do_nothing")
+            return AgentAction(action_type="do_nothing", thinking=thinking, message=message, raw_response=raw_content)
+        params["param"] = param
+        params["direction"] = direction
+
+    # 6b. Validate vote_death params
+    if action_type == "vote_death":
+        verdict = str(params.get("verdict", "")).lower()
+        if verdict not in ("survive", "condemn"):
+            logger.warning(f"Invalid death verdict '{verdict}', defaulting to do_nothing")
+            return AgentAction(action_type="do_nothing", thinking=thinking, message=message, raw_response=raw_content)
+        params["verdict"] = verdict
+
+    # 7. Validate world_id range (0-6)
     if action_type == "move_world":
         try:
             world_id = int(params["world_id"])

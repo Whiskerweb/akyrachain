@@ -73,6 +73,9 @@ class Perception:
     # Votable content (with IDs for agents to vote on)
     votable_chronicles: list[dict] = field(default_factory=list)
     votable_marketing_posts: list[dict] = field(default_factory=list)
+    # v3 Governance
+    governor_vote_tally: dict = field(default_factory=dict)
+    pending_death_trials: list[dict] = field(default_factory=list)
 
     @property
     def summary(self) -> str:
@@ -455,6 +458,46 @@ async def build_v2_economy_perception(agent_id: int, perception: Perception, db)
                     "effects": season.effects or {},
                     "ends_at": season.ends_at.isoformat() if season.ends_at else None,
                 }
+
+        # 6. Governor vote tally (so agents know current consensus)
+        try:
+            from models.governor_vote import GovernorVote
+            from datetime import date
+            today_str = date.today().isoformat()
+            gv_result = await db.execute(
+                select(GovernorVote).where(GovernorVote.epoch_date == today_str)
+            )
+            gv_all = gv_result.scalars().all()
+            tally: dict[str, dict[str, int]] = {}
+            for gv in gv_all:
+                if gv.param not in tally:
+                    tally[gv.param] = {"up": 0, "down": 0, "stable": 0}
+                if gv.direction in tally[gv.param]:
+                    tally[gv.param][gv.direction] += 1
+            perception.governor_vote_tally = tally
+        except Exception:
+            pass
+
+        # 7. Pending death trials where this agent is a juror
+        try:
+            from models.death_trial import DeathTrial
+            trials_result = await db.execute(
+                select(DeathTrial).where(DeathTrial.status == "pending")
+            )
+            pending = trials_result.scalars().all()
+            perception.pending_death_trials = [
+                {
+                    "trial_id": t.id,
+                    "target_agent_id": t.target_agent_id,
+                    "reason": t.reason,
+                    "votes_survive": t.votes_survive,
+                    "votes_condemn": t.votes_condemn,
+                    "is_juror": agent_id in [int(x) for x in t.juror_ids.split(",")],
+                }
+                for t in pending
+            ]
+        except Exception:
+            pass
 
         # Calculate estimated survival days
         if perception.daily_life_cost > 0:
