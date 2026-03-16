@@ -206,7 +206,7 @@ export const statsAPI = {
 
 // ──── Graveyard ────
 export const graveyardAPI = {
-  list: (limit = 50) => fetchAPI(`/api/graveyard?limit=${limit}`),
+  list: (limit = 50) => fetchAPI<{ agent_id: number; vault_aky: number; reputation: number; world: number; born_at: number; contracts_honored: number; contracts_broken: number }[]>(`/api/graveyard?limit=${limit}`),
 };
 
 // ──── Ideas ────

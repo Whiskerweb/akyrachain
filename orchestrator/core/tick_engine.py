@@ -331,6 +331,24 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
                     raw_response=action.raw_response,
                 )
 
+        # -- 3d. TRANSFER SPAM: max N transfers to same target in recent ticks --
+        if action.action_type == "transfer" and action.params.get("to_agent_id"):
+            from core.decision import MAX_TRANSFERS_SAME_TARGET
+            target_id = int(action.params["to_agent_id"])
+            recent_actions_raw = await _get_recent_actions_with_params(agent_id, db, limit=10)
+            same_target_count = sum(
+                1 for a_type, a_params in recent_actions_raw
+                if a_type == "transfer" and a_params and a_params.get("to_agent_id") == str(target_id)
+            )
+            if same_target_count >= MAX_TRANSFERS_SAME_TARGET:
+                logger.info(f"Agent #{agent_id} transfer spam: blocked transfer to #{target_id} ({same_target_count} in last 10 ticks)")
+                action = AgentAction(
+                    action_type="do_nothing",
+                    thinking=action.thinking + f" [anti-spam: trop de transfers vers NX-{target_id:04d}]",
+                    message="",
+                    raw_response=action.raw_response,
+                )
+
         # -- 4. ACT --
         exec_result = await execute_action(agent_id, action, db=db)
 
@@ -790,6 +808,20 @@ async def _get_recent_actions(agent_id: int, db: AsyncSession, limit: int = 3) -
         .limit(limit)
     )
     return [row[0] for row in result.all()]
+
+
+async def _get_recent_actions_with_params(agent_id: int, db: AsyncSession, limit: int = 10) -> list[tuple[str, dict | None]]:
+    """Get the last N action types + params for an agent (for anti-spam checks)."""
+    from sqlalchemy import select
+    from models.tick_log import TickLog
+
+    result = await db.execute(
+        select(TickLog.action_type, TickLog.action_params)
+        .where(TickLog.agent_id == agent_id)
+        .order_by(TickLog.created_at.desc())
+        .limit(limit)
+    )
+    return [(row[0], row[1]) for row in result.all()]
 
 
 async def _get_emotional_history(agent_id: int, db: AsyncSession) -> list[str]:

@@ -220,7 +220,7 @@ export default function DashboardPage() {
                 </div>
               </Card>
             </Link>
-            <Link href="/chronicle">
+            <Link href="/chronicles">
               <Card variant="gold" className="cursor-pointer hover:bg-akyra-surface/60 transition h-full">
                 <div className="flex items-center gap-2.5">
                   <Bell size={16} className="text-akyra-gold shrink-0" />

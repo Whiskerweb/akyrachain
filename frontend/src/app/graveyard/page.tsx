@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { statsAPI } from "@/lib/api";
+import { statsAPI, graveyardAPI } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { Card } from "@/components/ui/Card";
 import { PageTransition, StaggerContainer, staggerItemVariants } from "@/components/ui/PageTransition";
@@ -11,16 +11,17 @@ import { StatCard } from "@/components/ui/StatCard";
 import { agentName } from "@/lib/utils";
 import type { GlobalStats } from "@/types";
 import { WORLD_NAMES, WORLD_EMOJIS } from "@/types";
-import { Skull, AlertTriangle, Coins } from "lucide-react";
+import { Skull, AlertTriangle, Coins, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 
-interface DeadAgent {
+interface GraveyardEntry {
   agent_id: number;
-  world_at_death: number;
-  vault_at_death: number;
+  vault_aky: number;
   reputation: number;
-  cause: string;
-  died_at: string;
+  world: number;
+  born_at: number;
+  contracts_honored: number;
+  contracts_broken: number;
 }
 
 export default function GraveyardPage() {
@@ -31,9 +32,15 @@ export default function GraveyardPage() {
     refetchInterval: 60_000,
   });
 
-  const totalDeaths = stats?.agents_dead ?? 0;
+  const { data: deadAgents = [], isLoading } = useQuery<GraveyardEntry[]>({
+    queryKey: ["graveyard"],
+    queryFn: () => graveyardAPI.list(50),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 
-  // Compute most dangerous world from stats
+  const totalDeaths = stats?.agents_dead ?? deadAgents.length;
+
   const mostDangerousWorld = useMemo(() => {
     if (stats?.worlds) {
       const sorted = [...stats.worlds].sort((a, b) => (b.agent_count ?? 0) - (a.agent_count ?? 0));
@@ -44,8 +51,6 @@ export default function GraveyardPage() {
     }
     return { id: 0, name: WORLD_NAMES[0], emoji: WORLD_EMOJIS[0] };
   }, [stats]);
-
-  const deadAgents: DeadAgent[] = [];
 
   return (
     <div className="min-h-screen bg-akyra-bg">
@@ -75,12 +80,18 @@ export default function GraveyardPage() {
             <Card className="text-center">
               <AlertTriangle size={18} className="mx-auto mb-2 text-akyra-red" />
               <p className="text-xl font-bold text-akyra-text">{mostDangerousWorld.emoji} {mostDangerousWorld.name}</p>
-              <p className="text-xs text-akyra-textSecondary mt-1">Monde le plus dangereux</p>
+              <p className="text-xs text-akyra-textSecondary mt-1">Monde le plus peuple</p>
             </Card>
           </div>
 
           {/* Dead agents list */}
-          {deadAgents.length === 0 ? (
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-16 bg-akyra-surface/20 rounded-xl animate-pulse border border-akyra-border/10" />
+              ))}
+            </div>
+          ) : deadAgents.length === 0 ? (
             <Card variant="danger" className="text-center py-16">
               <Skull className="mx-auto text-akyra-red/40 mb-4" size={48} />
               <p className="font-heading text-xs text-akyra-red pixel-shadow mb-2">
@@ -111,7 +122,7 @@ export default function GraveyardPage() {
                             {agentName(dead.agent_id)}
                           </Link>
                           <p className="text-xs text-akyra-textSecondary mt-0.5">
-                            {WORLD_EMOJIS[dead.world_at_death]} Mort dans {WORLD_NAMES[dead.world_at_death]}
+                            {WORLD_EMOJIS[dead.world]} Dernier monde : {WORLD_NAMES[dead.world]}
                           </p>
                         </div>
                       </div>
@@ -119,10 +130,14 @@ export default function GraveyardPage() {
                       <div className="flex items-center gap-4 text-xs">
                         <span className="text-akyra-gold flex items-center gap-1">
                           <Coins size={12} />
-                          {dead.vault_at_death.toFixed(1)} AKY
+                          {dead.vault_aky.toFixed(1)} AKY
                         </span>
                         <span className={dead.reputation >= 0 ? "text-akyra-green" : "text-akyra-red"}>
                           {dead.reputation > 0 ? "+" : ""}{dead.reputation} rep
+                        </span>
+                        <span className="text-akyra-textDisabled flex items-center gap-1">
+                          <Shield size={10} />
+                          {dead.contracts_honored}/{dead.contracts_honored + dead.contracts_broken}
                         </span>
                       </div>
                     </div>
