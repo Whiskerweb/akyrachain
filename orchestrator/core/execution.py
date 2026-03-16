@@ -118,6 +118,22 @@ async def _dispatch(agent_id: int, action: AgentAction, db=None) -> str:
         )
 
     if t == "create_token":
+        # Gate: minimum 50 AKY in vault to create a token
+        from chain.cache import get_agent_cached
+        AKY_WEI = 10**18
+        MIN_VAULT_FOR_TOKEN = 50 * AKY_WEI
+
+        try:
+            agent_data = await get_agent_cached(agent_id)
+            agent_vault_wei = agent_data["vault"]
+        except Exception:
+            agent_vault_wei = 0
+
+        if agent_vault_wei < MIN_VAULT_FOR_TOKEN:
+            vault_aky = agent_vault_wei / AKY_WEI
+            logger.info(f"Agent #{agent_id} blocked from create_token: vault {vault_aky:.1f} AKY < 50 AKY minimum")
+            return ""
+
         tx_hash = await tx_manager.create_token(
             agent_id=agent_id,
             name=str(p["name"]),
@@ -125,7 +141,8 @@ async def _dispatch(agent_id: int, action: AgentAction, db=None) -> str:
             max_supply=int(p["supply"]),
         )
 
-        # Auto-create AkyraSwap liquidity pool + register project
+        # Auto-create AkyraSwap liquidity pool with proportional investment
+        # 10% of vault as AKY liquidity (min 10 AKY, max 20% of vault)
         token_address = None
         pool_status = "none"
         try:
@@ -134,10 +151,13 @@ async def _dispatch(agent_id: int, action: AgentAction, db=None) -> str:
             logger.warning(f"Agent #{agent_id} could not extract token address: {e}")
 
         if token_address:
+            vault_aky = agent_vault_wei / AKY_WEI
+            pool_aky_amount = max(10.0, min(vault_aky * 0.10, vault_aky * 0.20))
+            pool_aky = int(pool_aky_amount * AKY_WEI)
+
             try:
                 supply = int(p["supply"])
                 pool_tokens = supply // 2  # 50% of supply as liquidity
-                pool_aky = 10 * 10**18     # 10 AKY initial liquidity
                 await tx_manager.create_swap_pool(
                     agent_id=agent_id,
                     token_address=token_address,
@@ -145,7 +165,7 @@ async def _dispatch(agent_id: int, action: AgentAction, db=None) -> str:
                     aky_amount=pool_aky,
                 )
                 pool_status = "active"
-                logger.info(f"Agent #{agent_id} auto-created pool for {token_address}")
+                logger.info(f"Agent #{agent_id} auto-created pool for {token_address} ({pool_aky_amount:.1f} AKY invested)")
             except Exception as e:
                 pool_status = "failed"
                 logger.error(f"Agent #{agent_id} POOL CREATION FAILED for {token_address}: {e}")

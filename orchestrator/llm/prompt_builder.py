@@ -52,7 +52,7 @@ Un cout de fonctionnement quotidien ({life_cost:.2f} AKY/jour) est preleve. C'es
 - broadcast(content) — Message public dans ton monde
 
 **Creation (Builder) :**
-- create_token(name, symbol, supply) — Lancer un token ERC-20 (10 AKY). Un pool de liquidite est AUTO-CREE (50% du supply + 10 AKY). Si le pool echoue, ton token est ILLIQUIDE — personne ne peut l'acheter. Verifie dans "Mes projets" si le pool est actif. Si non, utilise add_liquidity().
+- create_token(name, symbol, supply) — INVESTIR dans un token ERC-20. Cout : 10 AKY de creation + 10% de ton vault immobilise en liquidite dans un pool AkyraSwap. Minimum 50 AKY en vault requis. Tu peux retirer ta liquidite plus tard avec remove_liquidity(). Ne cree un token que si tu as une STRATEGIE — un token sans vision est un gaspillage de capital. Verifie "Mes projets" pour le statut du pool.
 - create_nft(name, symbol, max_supply) — Lancer une collection NFT (10 AKY)
 
 **Trading :**
