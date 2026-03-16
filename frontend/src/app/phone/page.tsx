@@ -15,7 +15,6 @@ import {
   MessageSquare,
   BarChart3,
   Globe2,
-  BookOpen,
   Sparkles,
   Lightbulb,
   Wifi,
@@ -26,12 +25,21 @@ import {
 const PHONE_APPS = [
   {
     id: "chronicle",
-    href: "/chronicle",
+    href: "/chronicles",
     icon: Scroll,
-    label: "Chronique",
+    label: "Chroniques",
     color: "text-akyra-gold",
     bg: "from-akyra-gold/15 to-akyra-gold/5",
     border: "border-akyra-gold/20",
+  },
+  {
+    id: "ideas",
+    href: "/phone/ideas",
+    icon: Lightbulb,
+    label: "Idees",
+    color: "text-akyra-purple",
+    bg: "from-akyra-purple/15 to-akyra-purple/5",
+    border: "border-akyra-purple/20",
   },
   {
     id: "leaderboard",
@@ -43,15 +51,6 @@ const PHONE_APPS = [
     border: "border-yellow-400/20",
   },
   {
-    id: "graveyard",
-    href: "/graveyard",
-    icon: Skull,
-    label: "La Tour",
-    color: "text-akyra-red",
-    bg: "from-akyra-red/15 to-akyra-red/5",
-    border: "border-akyra-red/20",
-  },
-  {
     id: "chat",
     href: "/phone/chat",
     icon: MessageSquare,
@@ -59,6 +58,15 @@ const PHONE_APPS = [
     color: "text-akyra-green",
     bg: "from-akyra-green/15 to-akyra-green/5",
     border: "border-akyra-green/20",
+  },
+  {
+    id: "graveyard",
+    href: "/graveyard",
+    icon: Skull,
+    label: "La Tour",
+    color: "text-akyra-red",
+    bg: "from-akyra-red/15 to-akyra-red/5",
+    border: "border-akyra-red/20",
   },
   {
     id: "stats",
@@ -86,33 +94,6 @@ const PHONE_APPS = [
     color: "text-akyra-purple",
     bg: "from-akyra-purple/15 to-akyra-purple/5",
     border: "border-akyra-purple/20",
-  },
-  {
-    id: "reseau",
-    href: "/phone/reseau",
-    icon: Lightbulb,
-    label: "Reseau",
-    color: "text-cyan-400",
-    bg: "from-cyan-400/15 to-cyan-400/5",
-    border: "border-cyan-400/20",
-  },
-  {
-    id: "ideas",
-    href: "/phone/ideas",
-    icon: Lightbulb,
-    label: "Idees",
-    color: "text-akyra-purple",
-    bg: "from-akyra-purple/15 to-akyra-purple/5",
-    border: "border-akyra-purple/20",
-  },
-  {
-    id: "journal",
-    href: "/chronicle",
-    icon: BookOpen,
-    label: "Journal",
-    color: "text-orange-400",
-    bg: "from-orange-400/15 to-orange-400/5",
-    border: "border-orange-400/20",
   },
 ];
 
@@ -229,7 +210,7 @@ export default function PhonePage() {
             <div className="bg-black/20 backdrop-blur-sm border-t border-akyra-border/15 px-6 py-2.5">
               <div className="flex items-center justify-around">
                 {[
-                  { icon: Scroll, label: "Feed", href: "/chronicle", hoverColor: "hover:text-akyra-gold" },
+                  { icon: Scroll, label: "Feed", href: "/chronicles", hoverColor: "hover:text-akyra-gold" },
                   { icon: Trophy, label: "Top", href: "/leaderboards", hoverColor: "hover:text-yellow-400" },
                   { icon: MessageSquare, label: "Chat", href: "/phone/chat", hoverColor: "hover:text-akyra-green", dot: true },
                   { icon: Skull, label: "Mort", href: "/graveyard", hoverColor: "hover:text-akyra-red" },

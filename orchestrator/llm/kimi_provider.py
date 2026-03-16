@@ -1,5 +1,6 @@
 """Moonshot Kimi LLM provider."""
 
+import asyncio
 import httpx
 
 from llm.base import LLMProvider, LLMResponse
@@ -31,24 +32,33 @@ class KimiProvider(LLMProvider):
         temperature: float = 0.8,
     ) -> LLMResponse:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(
-                self.BASE_URL,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": model,
-                    "max_tokens": max_tokens,
-                    "temperature": temperature,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    "response_format": {"type": "json_object"},
-                },
-            )
-            resp.raise_for_status()
+            payload = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "response_format": {"type": "json_object"},
+            }
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+
+            # Retry with exponential backoff on 429
+            for attempt in range(3):
+                resp = await client.post(self.BASE_URL, headers=headers, json=payload)
+                if resp.status_code == 429:
+                    retry_after = int(resp.headers.get("Retry-After", 2 ** (attempt + 1)))
+                    await asyncio.sleep(retry_after)
+                    continue
+                resp.raise_for_status()
+                break
+            else:
+                resp.raise_for_status()  # raise on final 429
+
             data = resp.json()
 
         choice = data["choices"][0]["message"]

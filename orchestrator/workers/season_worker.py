@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from workers.celery_app import app
+from workers.async_helper import run_async
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ def _get_db_session_factory():
 @app.task(name="workers.season_worker.check_season_trigger")
 def check_season_trigger():
     """Check if a new season should be triggered (5% daily chance)."""
-    asyncio.get_event_loop().run_until_complete(_check_season_async())
+    run_async(_check_season_async())
 
 
 async def _check_season_async():

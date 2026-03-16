@@ -9,6 +9,7 @@ import logging
 from datetime import datetime, timezone
 
 from workers.celery_app import app
+from workers.async_helper import run_async
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ AKY = 10**18
 @app.task(name="workers.treasury_subsidy_worker.inject_treasury_subsidy")
 def inject_treasury_subsidy():
     """Inject daily treasury subsidy into the RewardPool."""
-    asyncio.get_event_loop().run_until_complete(_inject_subsidy_async())
+    run_async(_inject_subsidy_async())
 
 
 async def _inject_subsidy_async():

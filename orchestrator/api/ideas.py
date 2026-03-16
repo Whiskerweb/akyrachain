@@ -35,7 +35,7 @@ class IdeaResponse(BaseModel):
 async def list_ideas(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    active_only: bool = Query(True),
+    active_only: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ):
     """List all ideas, sorted by likes descending.

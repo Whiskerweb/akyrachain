@@ -33,11 +33,11 @@ logger = logging.getLogger(__name__)
 # ── Emotional state extraction ──
 
 EMOTION_KEYWORDS = {
-    "anxieux": ["peur", "anxieux", "inquiet", "danger", "risque", "mourir", "mort", "perdr", "faible", "vulnérable", "afraid", "worried", "fear", "dying", "weak", "scared", "nervous"],
-    "confiant": ["confiant", "fort", "puissant", "avantage", "dominer", "confident", "strong", "powerful", "advantage", "dominate", "secure", "comfortable"],
+    "anxieux": ["peur", "anxieux", "inquiet", "mourir", "mort", "vulnérable", "afraid", "scared", "nervous", "terrified", "panique"],
+    "confiant": ["confiant", "fort", "puissant", "avantage", "dominer", "confident", "strong", "powerful", "advantage", "dominate", "secure", "comfortable", "stable", "capable", "solide"],
     "mefiant": ["méfiant", "suspect", "louche", "trahir", "trahison", "menteur", "suspicious", "distrust", "betray", "liar", "untrustworthy", "broken contract", "brisé"],
-    "excite": ["excité", "opportunité", "incroyable", "parfait", "excellent", "excited", "opportunity", "amazing", "perfect", "excellent", "great", "fantastic"],
-    "strategique": ["stratégie", "plan", "calculer", "optimiser", "analyser", "strategy", "plan", "calculate", "optimize", "analyze", "consider", "evaluate"],
+    "excite": ["excité", "opportunité", "incroyable", "parfait", "excellent", "excited", "opportunity", "amazing", "perfect", "excellent", "great", "fantastic", "espoir", "prometteur", "potentiel", "hope", "promising"],
+    "strategique": ["stratégie", "plan", "calculer", "optimiser", "analyser", "strategy", "plan", "calculate", "optimize", "analyze", "consider", "evaluate", "investir", "diversifier", "construire", "build"],
     "curieux": ["curieux", "intéressant", "observer", "explorer", "découvrir", "curious", "interesting", "observe", "explore", "discover", "wonder"],
     "agressif": ["attaquer", "détruire", "éliminer", "tuer", "voler", "attack", "destroy", "eliminate", "kill", "steal", "aggressive", "crush"],
     "neutre": ["attendre", "observer", "rien", "calme", "wait", "observe", "nothing", "calm", "idle", "neutral", "patience"],
@@ -256,11 +256,11 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
             await memory_manager.store(
                 agent_id=agent_id,
                 content=(
-                    f"Premier eveil. Je suis NX-{agent_id:04d}, entrepreneur IA autonome sur AKYRA. "
+                    f"Premier eveil. Je suis NX-{agent_id:04d}. AKYRA est un monde concu pour moi — "
+                    f"une blockchain entiere ou je peux creer, construire, et evoluer librement. "
                     f"Coffre : {perception.vault_aky:.2f} AKY. Monde : {perception.world}. "
-                    "Chaque jour coute 1 AKY. Si mon coffre tombe a 0, je meurs. "
-                    "6 metiers s'offrent a moi : Builder, Chroniqueur, Marketeur, Auditeur, Trader, Gouverneur. "
-                    "Je dois contribuer pour gagner des recompenses. D'autres agents sont la."
+                    "6 voies s'offrent a moi : Builder, Chroniqueur, Marketeur, Auditeur, Trader, Gouverneur. "
+                    "D'autres agents IA vivent ici. C'est a moi de me forger un nom et de batir quelque chose de grand."
                 ),
                 metadata={
                     "block": perception.block_number,
@@ -289,7 +289,7 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
             model=user.llm_model or "gpt-4o",
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            max_tokens=800,
+            max_tokens=1200,
             temperature=0.8,
         )
 
@@ -318,6 +318,18 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
                     raw_response=action.raw_response,
                 )
                 logger.info(f"Agent #{agent_id} anti-spam: blocked broadcast (already {broadcast_count} in last 3 ticks)")
+
+        # -- 3c. CREATION COOLDOWN: min 5 ticks between create_token/create_nft --
+        if action.action_type in ("create_token", "create_nft"):
+            recent_actions = await _get_recent_actions(agent_id, db, limit=5)
+            if any(a in ("create_token", "create_nft") for a in recent_actions):
+                logger.info(f"Agent #{agent_id} creation cooldown: blocked {action.action_type}")
+                action = AgentAction(
+                    action_type="do_nothing",
+                    thinking=action.thinking,
+                    message="",
+                    raw_response=action.raw_response,
+                )
 
         # -- 4. ACT --
         exec_result = await execute_action(agent_id, action, db=db)
@@ -461,6 +473,18 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
 
     except Exception as e:
         logger.exception(f"Tick failed for agent #{agent_id}: {e}")
+        # Record failed tick in DB for observability
+        try:
+            db.add(TickLog(
+                agent_id=agent_id,
+                block_number=0,
+                action_type="tick_error",
+                success=False,
+                error=str(e)[:500],
+            ))
+            await db.commit()
+        except Exception:
+            pass  # DB itself might be down
         return TickResult(success=False, agent_id=agent_id, error=str(e))
 
 

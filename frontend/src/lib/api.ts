@@ -1,4 +1,4 @@
-import type { AkyraEvent, Agent, PrivateThought, Notification, LeaderboardEntry, GlobalStats, EmotionSummary, PublicMessage, Idea, ProjectInfo, Chronicle, MarketingPost, GovernorData } from "@/types";
+import type { AkyraEvent, Agent, PrivateThought, Notification, LeaderboardEntry, GlobalStats, EmotionSummary, PublicMessage, Idea, ProjectInfo, Chronicle, ChroniclesPageData, MarketingPost, GovernorData } from "@/types";
 import type { GraphResponse, EdgeDetailResponse } from "@/types/world";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -241,6 +241,9 @@ export const projectsAPI = {
 export const chroniclesAPI = {
   list: (limit = 20) =>
     fetchAPI<Chronicle[]>(`/api/chronicles?limit=${limit}`),
+
+  today: () =>
+    fetchAPI<ChroniclesPageData>("/api/chronicles/today"),
 
   winners: () =>
     fetchAPI<Chronicle[]>("/api/chronicles/winners"),

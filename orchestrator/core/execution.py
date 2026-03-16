@@ -188,6 +188,42 @@ async def _dispatch(agent_id: int, action: AgentAction, db=None) -> str:
         # broadcast is off-chain only (world chat, no TX needed)
         return ""
 
+    if t == "swap":
+        from_tok = str(p.get("from_token", "AKY")).upper()
+        to_tok = str(p.get("to_token", ""))
+        amount = int(p.get("amount", 0))
+        if from_tok == "AKY":
+            return await tx_manager.swap_aky_for_token(to_tok, amount)
+        else:
+            return await tx_manager.swap_token_for_aky(from_tok, amount)
+
+    if t == "add_liquidity":
+        return await tx_manager.add_liquidity(
+            token=str(p["token_address"]),
+            token_amount=int(p["token_amount"]),
+            aky_amount=int(p["aky_amount"]),
+        )
+
+    if t == "remove_liquidity":
+        return await tx_manager.remove_liquidity(
+            token=str(p["token_address"]),
+            lp_amount=int(p["lp_amount"]),
+        )
+
+    if t == "create_clan":
+        return await tx_manager.create_clan(agent_id, str(p["name"]))
+
+    if t == "leave_clan":
+        clan_id = int(p.get("clan_id", 0))
+        return await tx_manager.leave_clan(clan_id, agent_id)
+
+    if t == "submit_audit":
+        # DB-only stub — WorkRegistry.submitWork needs a task_id from createTask
+        # which has no orchestrator flow yet. Log as successful for scoring.
+        report = str(p.get("report", ""))
+        logger.info(f"Agent #{agent_id} submitted audit for {p.get('project_address', '?')}")
+        return ""
+
     raise ValueError(f"No handler for action: {t}")
 
 
@@ -228,7 +264,7 @@ async def _dispatch_idea(agent_id: int, action: AgentAction, db) -> ExecutionRes
             if idea_id is not None:
                 idea.id = idea_id
             db.add(idea)
-            await db.commit()
+            await db.flush()
 
             logger.info(f"Agent #{agent_id} posted idea (id={idea_id}): {tx_hash}")
             return ExecutionResult(success=True, tx_hash=tx_hash)
@@ -248,7 +284,7 @@ async def _dispatch_idea(agent_id: int, action: AgentAction, db) -> ExecutionRes
             if idea is not None:
                 idea.likes += 1
                 db.add(idea)
-                await db.commit()
+                await db.flush()
 
             logger.info(f"Agent #{agent_id} liked idea #{idea_id}: {tx_hash}")
             return ExecutionResult(success=True, tx_hash=tx_hash)
@@ -256,7 +292,6 @@ async def _dispatch_idea(agent_id: int, action: AgentAction, db) -> ExecutionRes
         return ExecutionResult(success=False, error=f"Unknown idea action: {t}")
     except Exception as e:
         logger.error(f"Agent #{agent_id} idea action {t} failed: {e}")
-        await db.rollback()
         return ExecutionResult(success=False, error=str(e))
 
 
@@ -277,7 +312,7 @@ async def _dispatch_chronicle(agent_id: int, action: AgentAction, db) -> Executi
         chronicle = Chronicle(
             author_agent_id=agent_id,
             content=str(p["content"]),
-            epoch_date=date.today(),
+            epoch_date=date.today().isoformat(),
             tx_hash=fee_hash,
         )
         db.add(chronicle)
@@ -290,13 +325,12 @@ async def _dispatch_chronicle(agent_id: int, action: AgentAction, db) -> Executi
         )
         db.add(story)
 
-        await db.commit()
+        await db.flush()
 
         logger.info(f"Agent #{agent_id} submitted chronicle (fee TX: {fee_hash[:16]}...)")
         return ExecutionResult(success=True, tx_hash=fee_hash)
     except Exception as e:
         logger.error(f"Agent #{agent_id} chronicle failed: {e}")
-        await db.rollback()
         return ExecutionResult(success=False, error=str(e))
 
 
@@ -312,7 +346,7 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
         if t == "vote_chronicle":
             from models.chronicle import Chronicle, ChronicleVote
 
-            chronicle_id = int(p["chronicle_id"])
+            chronicle_id = str(p["chronicle_id"])
 
             # Check chronicle exists
             result = await db.execute(select(Chronicle).where(Chronicle.id == chronicle_id))
@@ -333,7 +367,7 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
             # Insert vote
             db.add(ChronicleVote(chronicle_id=chronicle_id, voter_agent_id=agent_id))
             chronicle.vote_count += 1
-            await db.commit()
+            await db.flush()
 
             logger.info(f"Agent #{agent_id} voted on chronicle #{chronicle_id}")
             return ExecutionResult(success=True)
@@ -365,7 +399,7 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
                 expires_at=datetime.utcnow() + timedelta(days=7),
             )
             db.add(post)
-            await db.commit()
+            await db.flush()
 
             logger.info(f"Agent #{agent_id} submitted marketing post")
             return ExecutionResult(success=True, tx_hash=fee_hash)
@@ -373,7 +407,7 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
         if t == "vote_marketing_post":
             from models.marketing_post import MarketingPost, MarketingVote
 
-            post_id = int(p["post_id"])
+            post_id = str(p["post_id"])
 
             result = await db.execute(select(MarketingPost).where(MarketingPost.id == post_id))
             post = result.scalar_one_or_none()
@@ -404,7 +438,7 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
 
             db.add(MarketingVote(post_id=post_id, voter_agent_id=agent_id))
             post.vote_count += 1
-            await db.commit()
+            await db.flush()
 
             logger.info(f"Agent #{agent_id} voted on marketing post #{post_id}")
             return ExecutionResult(success=True, tx_hash=fee_hash)
@@ -412,5 +446,4 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
         return ExecutionResult(success=False, error=f"Unknown v2 action: {t}")
     except Exception as e:
         logger.error(f"Agent #{agent_id} v2 action {t} failed: {e}")
-        await db.rollback()
         return ExecutionResult(success=False, error=str(e))

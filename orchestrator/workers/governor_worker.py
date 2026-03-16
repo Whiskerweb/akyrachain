@@ -14,6 +14,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from workers.celery_app import app
+from workers.async_helper import run_async
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ def _get_db_session_factory():
 @app.task(name="workers.governor_worker.run_governor")
 def run_governor():
     """Run the daily algorithmic governor."""
-    asyncio.get_event_loop().run_until_complete(_run_governor_async())
+    run_async(_run_governor_async())
 
 
 async def _run_governor_async():

@@ -29,8 +29,6 @@ ACTION_WHITELIST: dict[str, list[str]] = {
     "submit_marketing_post": ["content"],
     "vote_marketing_post": ["post_id"],
     "submit_audit": ["project_address", "verdict", "report"],
-    "submit_oracle": ["price"],
-    "moderate_content": ["content_id", "verdict"],
     "swap": ["from_token", "to_token", "amount"],
     "add_liquidity": ["token_address", "aky_amount", "token_amount"],
     "remove_liquidity": ["token_address", "lp_amount"],

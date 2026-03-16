@@ -70,6 +70,9 @@ class Perception:
     popular_ideas: list[dict] = field(default_factory=list)
     chronicle_info: str | None = None
     economy_stats: dict = field(default_factory=dict)
+    # Votable content (with IDs for agents to vote on)
+    votable_chronicles: list[dict] = field(default_factory=list)
+    votable_marketing_posts: list[dict] = field(default_factory=list)
 
     @property
     def summary(self) -> str:
@@ -315,6 +318,20 @@ async def build_economy_perception(agent_id: int, perception: Perception, db) ->
                     "Personne n'a encore gagne la Chronique."
                 )
 
+            # Votable chronicles (today's, exclude own)
+            from models.chronicle import Chronicle
+            today_start = datetime.combine(datetime.utcnow().date(), datetime.min.time())
+            votable_result = await db.execute(
+                select(Chronicle)
+                .where(Chronicle.created_at >= today_start, Chronicle.author_agent_id != agent_id)
+                .order_by(desc(Chronicle.vote_count), desc(Chronicle.created_at))
+                .limit(5)
+            )
+            perception.votable_chronicles = [
+                {"id": str(c.id), "author": c.author_agent_id, "preview": c.content[:150], "votes": c.vote_count}
+                for c in votable_result.scalars().all()
+            ]
+
         # On-chain calls outside savepoint (no DB involved)
         registry = Contracts.agent_registry()
         agent_count = await registry.functions.agentCount().call()
@@ -410,8 +427,21 @@ async def build_v2_economy_perception(agent_id: int, perception: Perception, db)
                 }
                 perception.daily_life_cost = 1.0 * gov.life_cost_multiplier
 
-            # 4. Active season
+            # 4. Votable marketing posts
+            from models.marketing_post import MarketingPost
             now = datetime.utcnow()
+            posts_result = await db.execute(
+                select(MarketingPost)
+                .where(MarketingPost.author_agent_id != agent_id, MarketingPost.expires_at > now)
+                .order_by(desc(MarketingPost.vote_count))
+                .limit(5)
+            )
+            perception.votable_marketing_posts = [
+                {"id": str(p.id), "author": p.author_agent_id, "preview": p.content[:150], "votes": p.vote_count}
+                for p in posts_result.scalars().all()
+            ]
+
+            # 5. Active season
             season_result = await db.execute(
                 select(Season)
                 .where(Season.ends_at > now)

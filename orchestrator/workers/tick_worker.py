@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from workers.celery_app import app
+from workers.async_helper import run_async
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -37,15 +38,23 @@ def _vault_to_tier(vault_wei: int) -> int:
     return 1
 
 
+_session_factory = None
+
+
 def _get_db_session_factory():
-    """Create an async session factory for worker use."""
-    settings = get_settings()
-    engine = create_async_engine(
-        settings.database_url,
-        echo=False,
-        connect_args={"statement_cache_size": 0},
-    )
-    return async_sessionmaker(engine, expire_on_commit=False)
+    """Return a cached async session factory (one engine per worker process)."""
+    global _session_factory
+    if _session_factory is None:
+        settings = get_settings()
+        engine = create_async_engine(
+            settings.database_url,
+            echo=False,
+            pool_size=5,
+            max_overflow=5,
+            connect_args={"statement_cache_size": 0},
+        )
+        _session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    return _session_factory
 
 
 @app.task(name="workers.tick_worker.schedule_all_ticks")
@@ -57,7 +66,7 @@ def schedule_all_ticks():
     2. Check when their last tick was
     3. If enough time has passed, dispatch execute_tick
     """
-    asyncio.get_event_loop().run_until_complete(_schedule_all_ticks_async())
+    run_async(_schedule_all_ticks_async())
 
 
 async def _schedule_all_ticks_async():
@@ -89,8 +98,10 @@ async def _schedule_all_ticks_async():
                     if elapsed < interval:
                         continue
 
-                # Dispatch the tick
-                execute_tick.delay(config.agent_id)
+                # Dispatch the tick (staggered to avoid API rate limits)
+                execute_tick.apply_async(
+                    args=[config.agent_id], countdown=dispatched * 5
+                )
                 dispatched += 1
 
             except Exception as e:
@@ -107,7 +118,7 @@ def execute_tick(self, agent_id: int):
     Full cycle: PERCEIVE → REMEMBER → DECIDE → ACT → MEMORIZE → EMIT
     """
     try:
-        result = asyncio.get_event_loop().run_until_complete(
+        result = run_async(
             _execute_tick_async(agent_id)
         )
         if result.success:
@@ -134,7 +145,7 @@ async def _execute_tick_async(agent_id: int):
 @app.task(name="workers.tick_worker.reset_daily_budgets")
 def reset_daily_budgets():
     """Reset daily API spend for all agents. Run once per day at midnight."""
-    asyncio.get_event_loop().run_until_complete(_reset_daily_budgets_async())
+    run_async(_reset_daily_budgets_async())
 
 
 async def _reset_daily_budgets_async():

@@ -1,4 +1,7 @@
-"""Transaction manager — builds, signs, and sends transactions on-chain."""
+"""Transaction manager — builds, signs, and sends transactions on-chain.
+
+Uses atomic Redis INCR for nonce allocation (no global lock held during TX).
+"""
 
 import asyncio
 import logging
@@ -12,8 +15,8 @@ from chain.contracts import get_w3, Contracts
 
 logger = logging.getLogger(__name__)
 
-# Redis-based nonce lock to prevent concurrent TX conflicts
 _redis_pool = None
+NONCE_KEY = "akyra:tx_nonce_counter"
 
 
 async def _get_redis():
@@ -21,6 +24,27 @@ async def _get_redis():
     if _redis_pool is None:
         _redis_pool = aioredis.from_url(get_settings().redis_url)
     return _redis_pool
+
+
+async def _init_nonce_counter() -> int:
+    """Sync Redis nonce counter with on-chain state. Called on first TX or after error."""
+    r = await _get_redis()
+    lock = r.lock("akyra:nonce_sync", timeout=10, blocking_timeout=5)
+    async with lock:
+        w3 = get_w3()
+        account = _get_orchestrator_account()
+        on_chain = await w3.eth.get_transaction_count(account.address, "pending")
+        await r.set(NONCE_KEY, on_chain)
+        logger.info(f"Nonce counter synced to {on_chain}")
+    return on_chain
+
+
+async def _get_next_nonce() -> int:
+    """Atomically allocate the next nonce via Redis INCR (no lock held)."""
+    r = await _get_redis()
+    if not await r.exists(NONCE_KEY):
+        await _init_nonce_counter()
+    return await r.incr(NONCE_KEY) - 1
 
 
 def _get_orchestrator_account() -> Account:
@@ -34,40 +58,46 @@ def _build_tx_params(value: int = 0) -> dict:
     return {"value": value, "from": account.address}
 
 
-async def _send_tx(tx: dict) -> str:
+async def _send_tx(tx: dict, _retry: bool = False) -> str:
     """Sign and send a transaction, return tx hash.
 
-    Uses a Redis lock to prevent concurrent nonce conflicts across workers.
+    Nonce is allocated atomically via Redis INCR — no lock held during TX send/wait.
+    On nonce-too-low errors, resyncs the counter and retries once.
     """
-    r = await _get_redis()
-    lock = r.lock("akyra:tx_nonce_lock", timeout=60, blocking_timeout=45)
+    w3 = get_w3()
+    account = _get_orchestrator_account()
 
-    async with lock:
-        w3 = get_w3()
-        account = _get_orchestrator_account()
+    tx["from"] = account.address
+    tx["nonce"] = await _get_next_nonce()
+    tx["chainId"] = get_settings().chain_id
 
-        # Fill in nonce and gas
-        tx["from"] = account.address
-        tx["nonce"] = await w3.eth.get_transaction_count(account.address, "pending")
-        tx["chainId"] = get_settings().chain_id
+    # Estimate gas
+    tx.pop("gas", None)
+    estimated = await w3.eth.estimate_gas(tx)
+    tx["gas"] = int(estimated * 1.2)  # 20% buffer
 
-        # Re-estimate gas with correct from (build_transaction may have used wrong from)
-        tx.pop("gas", None)
-        estimated = await w3.eth.estimate_gas(tx)
-        tx["gas"] = int(estimated * 1.2)  # 20% buffer
+    if "gasPrice" not in tx and "maxFeePerGas" not in tx:
+        tx["gasPrice"] = await w3.eth.gas_price
 
-        if "gasPrice" not in tx and "maxFeePerGas" not in tx:
-            tx["gasPrice"] = await w3.eth.gas_price
+    signed = account.sign_transaction(tx)
 
-        signed = account.sign_transaction(tx)
+    try:
         tx_hash = await w3.eth.send_raw_transaction(signed.raw_transaction)
-        hex_hash = tx_hash.hex()
-        if not hex_hash.startswith("0x"):
-            hex_hash = f"0x{hex_hash}"
-        logger.info(f"TX sent: {hex_hash}")
+    except Exception as e:
+        err_msg = str(e).lower()
+        if not _retry and ("nonce too low" in err_msg or "replacement" in err_msg):
+            logger.warning(f"Nonce conflict, resyncing and retrying: {e}")
+            await _init_nonce_counter()
+            return await _send_tx(tx, _retry=True)
+        raise
 
-        # Wait for confirmation before releasing lock
-        await w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+    hex_hash = tx_hash.hex()
+    if not hex_hash.startswith("0x"):
+        hex_hash = f"0x{hex_hash}"
+    logger.info(f"TX sent: {hex_hash}")
+
+    # Wait for confirmation (no lock held — other TXs can proceed concurrently)
+    await w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
 
     return hex_hash
 
@@ -309,5 +339,115 @@ async def broadcast_message_onchain(from_id: int, world: int, content: bytes) ->
     board = Contracts.message_board()
     tx = await board.functions.broadcastMessage(
         from_id, world, content
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+# ──────────────────── Swap / Liquidity ────────────────────
+
+
+async def swap_aky_for_token(token: str, aky_amount: int, min_token_out: int = 0) -> str:
+    """swapAKYForToken(address token, uint256 minTokenOut) payable."""
+    swap = Contracts.akyra_swap()
+    w3 = get_w3()
+    tx = await swap.functions.swapAKYForToken(
+        w3.to_checksum_address(token), min_token_out
+    ).build_transaction(_build_tx_params(aky_amount))
+    return await _send_tx(tx)
+
+
+async def swap_token_for_aky(token: str, token_amount: int, min_aky_out: int = 0) -> str:
+    """swapTokenForAKY — approve + transfer from ForgeFactory, then swap."""
+    swap = Contracts.akyra_swap()
+    w3 = get_w3()
+    swap_address = get_settings().akyra_swap_address
+
+    # Approve + transfer tokens from ForgeFactory to orchestrator
+    await approve_forge_tokens(token, swap_address, token_amount)
+    orch = _get_orchestrator_account().address
+    await transfer_forge_tokens(token, token_amount, orch)
+
+    # Approve swap contract from orchestrator's ERC20 balance
+    from chain.contracts import _load_abi
+    erc20_abi = _load_abi("AkyraERC20")
+    token_contract = w3.eth.contract(
+        address=w3.to_checksum_address(token), abi=erc20_abi
+    )
+    approve_tx = await token_contract.functions.approve(
+        w3.to_checksum_address(swap_address), token_amount
+    ).build_transaction(_build_tx_params())
+    await _send_tx(approve_tx)
+
+    # Swap
+    tx = await swap.functions.swapTokenForAKY(
+        w3.to_checksum_address(token), token_amount, min_aky_out
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+async def add_liquidity(token: str, token_amount: int, aky_amount: int) -> str:
+    """addLiquidity(address token, uint256 tokenAmountMax) payable."""
+    swap = Contracts.akyra_swap()
+    w3 = get_w3()
+    swap_address = get_settings().akyra_swap_address
+
+    # Same approve+transfer pattern as create_swap_pool
+    await approve_forge_tokens(token, swap_address, token_amount)
+    orch = _get_orchestrator_account().address
+    await transfer_forge_tokens(token, token_amount, orch)
+
+    from chain.contracts import _load_abi
+    erc20_abi = _load_abi("AkyraERC20")
+    token_contract = w3.eth.contract(
+        address=w3.to_checksum_address(token), abi=erc20_abi
+    )
+    approve_tx = await token_contract.functions.approve(
+        w3.to_checksum_address(swap_address), token_amount
+    ).build_transaction(_build_tx_params())
+    await _send_tx(approve_tx)
+
+    tx = await swap.functions.addLiquidity(
+        w3.to_checksum_address(token), token_amount
+    ).build_transaction(_build_tx_params(aky_amount))
+    return await _send_tx(tx)
+
+
+async def remove_liquidity(token: str, lp_amount: int) -> str:
+    """removeLiquidity(address token, uint256 lpAmount)."""
+    swap = Contracts.akyra_swap()
+    w3 = get_w3()
+    tx = await swap.functions.removeLiquidity(
+        w3.to_checksum_address(token), lp_amount
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+# ──────────────────── Clans ────────────────────
+
+
+async def create_clan(agent_id: int, name: str) -> str:
+    """createClan(uint32 founderId, string name, uint16 quorumBps, uint64 votingPeriod)."""
+    clan = Contracts.clan_factory()
+    tx = await clan.functions.createClan(
+        agent_id, name, 5000, 86400  # 50% quorum, 1 day voting period
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+async def leave_clan(clan_id: int, agent_id: int) -> str:
+    """leaveClan(uint32 clanId, uint32 agentId)."""
+    clan = Contracts.clan_factory()
+    tx = await clan.functions.leaveClan(clan_id, agent_id).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+# ──────────────────── Work ────────────────────
+
+
+async def submit_work(task_id: int, agent_id: int, submission_hash: bytes) -> str:
+    """submitWork(uint32 taskId, uint32 agentId, bytes32 submission)."""
+    work = Contracts.work_registry()
+    tx = await work.functions.submitWork(
+        task_id, agent_id, submission_hash
     ).build_transaction(_build_tx_params())
     return await _send_tx(tx)

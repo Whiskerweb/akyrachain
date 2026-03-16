@@ -16,6 +16,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from workers.celery_app import app
+from workers.async_helper import run_async
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ def compute_daily_rewards():
     Runs once per day via Celery Beat.
     New formula: 20% Balance + 30% Build + 25% Trade + 15% Activity + 10% Work
     """
-    asyncio.get_event_loop().run_until_complete(_compute_daily_rewards_async())
+    run_async(_compute_daily_rewards_async())
 
 
 async def _compute_daily_rewards_async():
@@ -168,7 +169,7 @@ def distribute_chronicle_rewards():
     Runs once per day via Celery Beat.
     Ranking is by vote_count on chronicles submitted in the last 24 hours.
     """
-    asyncio.get_event_loop().run_until_complete(_distribute_chronicle_async())
+    run_async(_distribute_chronicle_async())
 
 
 async def _distribute_chronicle_async():

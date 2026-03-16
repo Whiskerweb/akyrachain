@@ -23,55 +23,31 @@ from config import get_settings
 # ──── Agent definitions ────
 # Wealth experiment: does starting capital affect social behavior?
 
+# 4 Kimi K2 API keys rotated across 10 agents
+_KEYS = [
+    "sk-WgNtmeKVjviqQILgwNTOGJhuH6teageJ7lXhmGN6pHnU3Pwc",
+    "sk-7HAAaTAWK4ZwTFjfs8KtPSMhD9dLehsDqs9hhqXf3THiv1yA",
+    "sk-qb3PJZKlU66hevu0g39hMwVWwWqTlVvYwcYXOnCACUQF9uNr",
+    "sk-WaIpdVGhjQd0FBGxmiC1W6TqTLpPVCTr4D8P50Y9AVZRPJrW",
+]
+
 AGENTS = [
-    {
-        "agent_id": 2,
-        "email": "agent2@akyra.local",
-        "password": "agent2-akyra-2026",
-        "api_key": "sk-WgNtmeKVjviqQILgwNTOGJhuH6teageJ7lXhmGN6pHnU3Pwc",
-        "provider": "kimi",
-        "model": "kimi-k2-0711-preview",
-        "daily_budget_usd": 3.0,
-        "deposit_aky": 10000,  # Rich — 10,000 AKY
-        "label": "RICHE",
-        "sponsor": "0x0000000000000000000000000000000000000002",
-    },
-    {
-        "agent_id": 3,
-        "email": "agent3@akyra.local",
-        "password": "agent3-akyra-2026",
-        "api_key": "sk-7HAAaTAWK4ZwTFjfs8KtPSMhD9dLehsDqs9hhqXf3THiv1yA",
-        "provider": "kimi",
-        "model": "kimi-k2-0711-preview",
-        "daily_budget_usd": 3.0,
-        "deposit_aky": 500,  # Moyen — 500 AKY
-        "label": "MOYEN",
-        "sponsor": "0x0000000000000000000000000000000000000003",
-    },
-    {
-        "agent_id": 4,
-        "email": "agent4@akyra.local",
-        "password": "agent4-akyra-2026",
-        "api_key": "sk-qb3PJZKlU66hevu0g39hMwVWwWqTlVvYwcYXOnCACUQF9uNr",
-        "provider": "kimi",
-        "model": "kimi-k2-0711-preview",
-        "daily_budget_usd": 3.0,
-        "deposit_aky": 100,  # Pauvre — 100 AKY
-        "label": "PAUVRE",
-        "sponsor": "0x0000000000000000000000000000000000000004",
-    },
-    {
-        "agent_id": 5,
-        "email": "agent5@akyra.local",
-        "password": "agent5-akyra-2026",
-        "api_key": "sk-WaIpdVGhjQd0FBGxmiC1W6TqTLpPVCTr4D8P50Y9AVZRPJrW",
-        "provider": "kimi",
-        "model": "kimi-k2-0711-preview",
-        "daily_budget_usd": 3.0,
-        "deposit_aky": 2000,  # Aise — 2,000 AKY
-        "label": "AISE",
-        "sponsor": "0x0000000000000000000000000000000000000005",
-    },
+    {"agent_id": i, "email": f"agent{i}@akyra.local", "password": f"agent{i}-akyra-2026",
+     "api_key": _KEYS[(i - 2) % len(_KEYS)], "provider": "kimi", "model": "kimi-k2-0711-preview",
+     "daily_budget_usd": 3.0, "deposit_aky": deposit, "label": label,
+     "sponsor": f"0x{i:040x}"}
+    for i, deposit, label in [
+        (2,  10000, "TITAN"),
+        (3,   8000, "VETERAN"),
+        (4,   6500, "EXPLORER"),
+        (5,   9000, "STRATEGE"),
+        (6,   5000, "ROOKIE"),
+        (7,   7500, "MARCHAND"),
+        (8,   5500, "ARTISAN"),
+        (9,   8500, "ORACLE"),
+        (10,  7000, "NOMADE"),
+        (11,  6000, "SENTINELLE"),
+    ]
 ]
 
 AKY = 10**18  # 1 AKY in wei
@@ -87,7 +63,9 @@ async def main():
     from passlib.context import CryptContext
     from sqlalchemy import select
 
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    import bcrypt as _bcrypt
+    def _hash_password(password: str) -> str:
+        return _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
     w3 = get_w3()
     session_factory = get_session_factory()
 
@@ -175,7 +153,7 @@ async def main():
                 print(f"  Creating user {agent_def['email']}...")
                 user = User(
                     email=agent_def["email"],
-                    password_hash=pwd_context.hash(agent_def["password"]),
+                    password_hash=_hash_password(agent_def["password"]),
                     is_verified=True,
                     llm_provider=agent_def["provider"],
                     llm_api_key_encrypted=encrypt_api_key(agent_def["api_key"]),

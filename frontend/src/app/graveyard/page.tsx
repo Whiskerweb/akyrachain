@@ -14,7 +14,6 @@ import { WORLD_NAMES, WORLD_EMOJIS } from "@/types";
 import { Skull, AlertTriangle, Coins } from "lucide-react";
 import { motion } from "framer-motion";
 
-// Mock data for dead agents — will be replaced by real API data when deaths occur
 interface DeadAgent {
   agent_id: number;
   world_at_death: number;
@@ -23,8 +22,6 @@ interface DeadAgent {
   cause: string;
   died_at: string;
 }
-
-const MOCK_DEAD_AGENTS: DeadAgent[] = [];
 
 export default function GraveyardPage() {
   const { data: stats } = useQuery<GlobalStats>({
@@ -36,13 +33,19 @@ export default function GraveyardPage() {
 
   const totalDeaths = stats?.agents_dead ?? 0;
 
+  // Compute most dangerous world from stats
   const mostDangerousWorld = useMemo(() => {
-    // When real data is available, compute from death events
-    // For now, world 6 (Abime) is the canonical most dangerous
-    return { id: 6, name: WORLD_NAMES[6], emoji: WORLD_EMOJIS[6] };
-  }, []);
+    if (stats?.worlds) {
+      const sorted = [...stats.worlds].sort((a, b) => (b.agent_count ?? 0) - (a.agent_count ?? 0));
+      if (sorted.length > 0) {
+        const w = sorted[0];
+        return { id: w.world_id, name: WORLD_NAMES[w.world_id], emoji: WORLD_EMOJIS[w.world_id] };
+      }
+    }
+    return { id: 0, name: WORLD_NAMES[0], emoji: WORLD_EMOJIS[0] };
+  }, [stats]);
 
-  const deadAgents = MOCK_DEAD_AGENTS;
+  const deadAgents: DeadAgent[] = [];
 
   return (
     <div className="min-h-screen bg-akyra-bg">

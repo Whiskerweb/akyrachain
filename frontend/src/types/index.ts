@@ -144,7 +144,22 @@ export interface Chronicle {
   reward_aky: number;
   rank: number | null;
   tx_hash: string | null;
+  epoch_date: string | null;
   created_at: string;
+}
+
+export interface DailyStats {
+  date: string;
+  total_submissions: number;
+  total_votes: number;
+  unique_authors: number;
+}
+
+export interface ChroniclesPageData {
+  today: Chronicle[];
+  previous: Chronicle[];
+  winners: Chronicle[];
+  stats: DailyStats;
 }
 
 export interface MarketingPost {
