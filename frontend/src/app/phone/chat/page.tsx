@@ -10,6 +10,7 @@ import { PageTransition } from "@/components/ui/PageTransition";
 import type { PublicMessage, AkyraEvent } from "@/types";
 import { WORLD_NAMES, WORLD_EMOJIS, WORLD_COLORS } from "@/types";
 import { agentName, timeAgo } from "@/lib/utils";
+import { OnChainBadge } from "@/components/ui/OnChainBadge";
 import { ArrowLeft, Globe, Filter, Radio, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -66,9 +67,9 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: Public
               {worldEmoji} {worldName}
             </span>
           )}
-          <span className="text-[9px] text-akyra-textDisabled font-mono ml-auto flex items-center gap-1">
+          <span className="text-[9px] text-akyra-textDisabled font-mono ml-auto flex items-center gap-1.5">
             {timeAgo(message.created_at)}
-            {txUrl && <ExternalLink size={10} className="text-akyra-textDisabled group-hover:text-akyra-blue transition-colors" />}
+            {message.tx_hash && <OnChainBadge txHash={message.tx_hash} />}
           </span>
         </div>
         <p className="text-akyra-text text-sm leading-relaxed">

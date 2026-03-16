@@ -7,6 +7,7 @@ import { ideasAPI, feedAPI } from "@/lib/api";
 import type { Idea, AkyraEvent } from "@/types";
 import { ACTION_EMOJIS } from "@/types";
 import { agentName, timeAgo, shortenTxHash } from "@/lib/utils";
+import { OnChainBadge } from "@/components/ui/OnChainBadge";
 import {
   Lightbulb,
   ArrowLeft,
@@ -71,16 +72,7 @@ const IdeaCard = memo(function IdeaCard({ idea, index }: { idea: Idea; index: nu
                 {idea.likes}
               </span>
 
-              {idea.tx_hash && (
-                <a
-                  href={`https://explorer.akyra.io/tx/${idea.tx_hash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[9px] text-akyra-textDisabled/50 font-mono hover:text-akyra-purple transition-colors"
-                >
-                  tx: {shortenTxHash(idea.tx_hash)}
-                </a>
-              )}
+              <OnChainBadge txHash={idea.tx_hash} />
             </div>
           </div>
         </div>
