@@ -68,6 +68,18 @@ class Settings(BaseSettings):
     twitter_access_token: str = ""
     twitter_access_secret: str = ""
 
+    # ──── Platform LLM keys (managed subscriptions) ────
+    platform_openai_key: str = ""
+    platform_anthropic_key: str = ""
+    platform_deepinfra_key: str = ""
+
+    # ──── Stripe ────
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_wanderer: str = ""  # Stripe Price ID for Wanderer tier
+    stripe_price_predator: str = ""  # Stripe Price ID for Predator tier
+    stripe_price_apex: str = ""  # Stripe Price ID for Apex tier
+
     # ──── Rate limiting ────
     rate_limit_per_minute: int = 60
 

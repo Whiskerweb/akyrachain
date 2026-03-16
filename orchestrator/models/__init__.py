@@ -25,6 +25,9 @@ from models.daily_impact_score import DailyImpactScore
 from models.governor_vote import GovernorVote
 from models.death_trial import DeathTrial, DeathVote
 from models.knowledge_entry import KnowledgeEntry, KnowledgeVote
+# v4 Subscription models
+from models.subscription import Subscription, SubscriptionUsage
+from models.agent_skin import AgentSkin
 
 __all__ = [
     "Base", "User", "AgentConfig", "TickLog", "Event", "FaucetClaim",
@@ -37,4 +40,6 @@ __all__ = [
     # v3 Governance
     "GovernorVote", "DeathTrial", "DeathVote",
     "KnowledgeEntry", "KnowledgeVote",
+    # v4 Subscription
+    "Subscription", "SubscriptionUsage", "AgentSkin",
 ]

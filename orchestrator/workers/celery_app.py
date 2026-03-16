@@ -100,5 +100,10 @@ app.conf.update(
             "task": "workers.death_trial_worker.resolve_death_trials",
             "schedule": crontab(hour="*/6", minute=50),
         },
+        # v4 Subscriptions: daily AKY deposit for subscribers
+        "daily-subscription-deposit": {
+            "task": "workers.tick_worker.daily_subscription_deposit",
+            "schedule": crontab(hour=0, minute=2),
+        },
     },
 )

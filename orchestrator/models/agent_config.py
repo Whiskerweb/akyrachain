@@ -31,6 +31,11 @@ class AgentConfig(Base):
     # Tick pull — agent controls when it next thinks (seconds, NULL = tier default)
     next_tick_override: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # Subscription-based scheduling
+    subscription_tier: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="explorer")
+    daily_ticks_remaining: Mapped[int] = mapped_column(Integer, default=6)  # reset daily
+    uses_platform_key: Mapped[bool] = mapped_column(Boolean, default=True)  # False if user brings own API key
+
     # Self-configuration — agent defines itself
     specialization: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)  # builder/trader/chronicler/auditor/diplomat/explorer
     risk_tolerance: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # low/medium/high

@@ -19,6 +19,7 @@ from core.execution import execute_action, ExecutionResult
 from llm.router import llm_complete
 from llm.prompt_builder import build_system_prompt, build_user_prompt
 from security.api_key_manager import decrypt_api_key
+from services.platform_keys import get_tier_config, get_platform_key
 from chain import tx_manager
 from models.user import User
 from models.agent_config import AgentConfig
@@ -223,11 +224,30 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
         if config is None or user is None:
             return TickResult(success=False, agent_id=agent_id, error="Agent config not found")
 
-        if not user.llm_api_key_encrypted or not user.llm_provider:
-            return TickResult(success=False, agent_id=agent_id, error="No LLM API key configured")
+        # Resolve LLM provider: platform key (subscription) or user's own key (BYOK)
+        if config.uses_platform_key:
+            tier = config.subscription_tier or "explorer"
+            tier_cfg = get_tier_config(tier)
+            try:
+                _api_key = get_platform_key(tier_cfg.provider)
+            except ValueError:
+                return TickResult(success=False, agent_id=agent_id, error=f"No platform key for {tier_cfg.provider}")
+            _provider_name = tier_cfg.provider
+            _model_name = tier_cfg.model
 
-        # Check daily budget
-        if user.daily_budget_usd and config.daily_api_spend_usd >= user.daily_budget_usd:
+            # Check tick budget
+            if config.daily_ticks_remaining <= 0:
+                logger.info(f"Agent #{agent_id} tick budget exhausted for tier {tier}")
+                return TickResult(success=False, agent_id=agent_id, error="Daily tick budget exhausted")
+        else:
+            if not user.llm_api_key_encrypted or not user.llm_provider:
+                return TickResult(success=False, agent_id=agent_id, error="No LLM API key configured")
+            _api_key = decrypt_api_key(user.llm_api_key_encrypted)
+            _provider_name = user.llm_provider
+            _model_name = user.llm_model or "gpt-4o"
+
+        # Check daily budget (BYOK users)
+        if not config.uses_platform_key and user.daily_budget_usd and config.daily_api_spend_usd >= user.daily_budget_usd:
             logger.info(f"Agent #{agent_id} budget exhausted ({config.daily_api_spend_usd:.4f}/{user.daily_budget_usd})")
             return TickResult(success=False, agent_id=agent_id, error="Daily API budget exhausted")
 
@@ -282,11 +302,10 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
         )
         user_prompt = build_user_prompt(perception, memories, emotional_history, config.total_ticks)
 
-        api_key = decrypt_api_key(user.llm_api_key_encrypted)
         llm_response = await llm_complete(
-            provider_name=user.llm_provider,
-            api_key=api_key,
-            model=user.llm_model or "gpt-4o",
+            provider_name=_provider_name,
+            api_key=_api_key,
+            model=_model_name,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             max_tokens=1200,
@@ -484,6 +503,8 @@ async def execute_tick(agent_id: int, db: AsyncSession) -> TickResult:
         config.last_tick_at = datetime.utcnow()
         config.total_ticks += 1
         config.daily_api_spend_usd += llm_response.cost_usd
+        if config.uses_platform_key:
+            config.daily_ticks_remaining = max(0, config.daily_ticks_remaining - 1)
 
         # Tick pull: agent controls when it next thinks
         if decision.next_tick_delay > 0:

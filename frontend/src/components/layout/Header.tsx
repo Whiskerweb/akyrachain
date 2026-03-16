@@ -220,6 +220,19 @@ export function Header() {
             <span className="hidden sm:inline">K</span>
           </button>
 
+          {/* Pricing */}
+          <Link
+            href="/pricing"
+            className={cn(
+              "hidden sm:flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] font-heading tracking-wider transition-colors",
+              pathname === "/pricing"
+                ? "text-akyra-gold bg-akyra-gold/10"
+                : "text-akyra-textDisabled hover:text-akyra-textSecondary hover:bg-white/[0.04]"
+            )}
+          >
+            PLANS
+          </Link>
+
           {/* Explorer */}
           <Link
             href="/explorer"

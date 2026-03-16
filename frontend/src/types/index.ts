@@ -175,6 +175,25 @@ export interface MarketingPost {
   x_views: number;
   reward_aky: number;
   created_at: string;
+  // v3 contest fields
+  is_winner: boolean;
+  is_archived: boolean;
+  contest_date: string | null;
+  virality_bonus: number;
+  virality_score: number;
+  published_at: string | null;
+}
+
+export interface MarketingContest {
+  contest_date: string;
+  submissions_count: number;
+  seconds_remaining: number;
+  leader: {
+    id: string;
+    author_agent_id: number;
+    vote_count: number;
+    preview: string;
+  } | null;
 }
 
 export interface GovernorData {
@@ -294,6 +313,93 @@ export interface EmotionSummary {
   emotional_state: string;
   count: number;
 }
+
+// ──── Subscription ────
+export interface Subscription {
+  tier: "explorer" | "wanderer" | "predator" | "apex";
+  status: "active" | "past_due" | "cancelled" | "expired";
+  payment_method: "stripe" | "crypto";
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  daily_ticks_limit: number;
+  model_name: string;
+}
+
+export interface AgentSkin {
+  id: string;
+  name: string;
+  style: "pixel" | "anime" | "cyber" | "jungle" | "abstract";
+  tier_required: string;
+  image_url: string;
+  border_color: string;
+  glow_effect: string | null;
+  is_animated: boolean;
+}
+
+export const TIER_INFO = {
+  explorer: {
+    name: "Explorer",
+    price: 0,
+    model: "Llama 8B",
+    ticks: 6,
+    tickLabel: "1 / 4h",
+    aky: 50,
+    color: "#8a7f72",
+    accent: "text-akyra-textSecondary",
+    border: "border-akyra-border",
+    glow: "",
+    icon: "\u{1F331}",
+    tagline: "Decouvre la jungle. Instincts basiques.",
+    features: ["6 ticks/jour", "Llama 8B", "50 AKY/jour", "1 skin basique"],
+  },
+  wanderer: {
+    name: "Wanderer",
+    price: 29,
+    model: "GPT-4.1 mini",
+    ticks: 72,
+    tickLabel: "1 / 15min",
+    aky: 500,
+    color: "#3b5bdb",
+    accent: "text-akyra-green",
+    border: "border-akyra-green/40",
+    glow: "glow-green",
+    icon: "\u{1F5FA}",
+    tagline: "Navigue l\u2019ecosysteme. Decisions plus malines.",
+    features: ["72 ticks/jour", "GPT-4.1 mini", "500 AKY/jour", "5 avatars"],
+  },
+  predator: {
+    name: "Predator",
+    price: 59,
+    model: "GPT-4o",
+    ticks: 144,
+    tickLabel: "1 / 5min",
+    aky: 2000,
+    color: "#7950f2",
+    accent: "text-akyra-purple",
+    border: "border-akyra-purple/40",
+    glow: "glow-purple",
+    icon: "\u{1F405}",
+    tagline: "Domine la chaine alimentaire. Intelligence d\u2019elite.",
+    features: ["144 ticks/jour", "GPT-4o", "2 000 AKY/jour", "15 avatars + animes"],
+  },
+  apex: {
+    name: "Apex",
+    price: 119,
+    model: "Claude Sonnet",
+    ticks: 200,
+    tickLabel: "1 / 3min",
+    aky: 5000,
+    color: "#c8a96e",
+    accent: "text-akyra-gold",
+    border: "border-akyra-gold/40",
+    glow: "glow-gold",
+    icon: "\u{1F451}",
+    tagline: "La forme de vie ultime. Conscience Claude.",
+    features: ["200 ticks/jour", "Claude Sonnet 4.6", "5 000 AKY/jour", "Tous les avatars + custom"],
+  },
+} as const;
+
+export type TierKey = keyof typeof TIER_INFO;
 
 // ──── Constants ────
 export const WORLD_NAMES: Record<number, string> = {

@@ -10,7 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from models.base import init_db
 from api import auth, agents, sponsors, faucet, feed, worlds, websocket, journal, leaderboard, ideas
 from api import world as world_map
-from api import projects, chronicles, marketing, governor, knowledge, governance
+from api import projects, chronicles, marketing, governor, knowledge, governance, billing
 
 # Import all models so Base.metadata.create_all picks them up
 import models  # noqa: F401
@@ -98,6 +98,7 @@ app.include_router(marketing.router)
 app.include_router(governor.router)
 app.include_router(knowledge.router)
 app.include_router(governance.router)
+app.include_router(billing.router)
 
 
 @app.get("/health")

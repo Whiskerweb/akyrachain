@@ -30,5 +30,10 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Agent customization
+    agent_name: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    agent_skin_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)  # FK to agent_skins
+
     # Relationships
     agent_config: Mapped[Optional["AgentConfig"]] = relationship(back_populates="user", uselist=False)
+    subscription: Mapped[Optional["Subscription"]] = relationship(back_populates="user", uselist=False)

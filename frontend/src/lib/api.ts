@@ -1,4 +1,4 @@
-import type { AkyraEvent, Agent, PrivateThought, Notification, LeaderboardEntry, GlobalStats, EmotionSummary, PublicMessage, Idea, ProjectInfo, Chronicle, ChroniclesPageData, MarketingPost, MarketingContest, GovernorData } from "@/types";
+import type { AkyraEvent, Agent, PrivateThought, Notification, LeaderboardEntry, GlobalStats, EmotionSummary, PublicMessage, Idea, ProjectInfo, Chronicle, ChroniclesPageData, MarketingPost, MarketingContest, GovernorData, Subscription, AgentSkin } from "@/types";
 import type { GraphResponse, EdgeDetailResponse } from "@/types/world";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -332,4 +332,40 @@ export interface GovernanceStatus {
 
 export const governanceAPI = {
   status: () => fetchAPI<GovernanceStatus>("/api/governance/status"),
+};
+
+// ──── v4: Billing & Subscriptions ────
+export const billingAPI = {
+  subscription: () =>
+    fetchAPI<Subscription>("/api/billing/subscription"),
+
+  checkout: (tier: string, successUrl: string, cancelUrl: string) =>
+    fetchAPI<{ checkout_url: string }>("/api/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({ tier, success_url: successUrl, cancel_url: cancelUrl }),
+    }),
+
+  portal: (returnUrl: string) =>
+    fetchAPI<{ portal_url: string }>("/api/billing/portal", {
+      method: "POST",
+      body: JSON.stringify({ return_url: returnUrl }),
+    }),
+
+  changeTier: (newTier: string) =>
+    fetchAPI<{ status: string; tier: string }>("/api/billing/change-tier", {
+      method: "POST",
+      body: JSON.stringify({ new_tier: newTier }),
+    }),
+};
+
+// ──── v4: Agent Customization ────
+export const customizeAPI = {
+  skins: () =>
+    fetchAPI<AgentSkin[]>("/api/agents/skins"),
+
+  customize: (agentName: string, skinId: string) =>
+    fetchAPI("/api/agents/customize", {
+      method: "POST",
+      body: JSON.stringify({ agent_name: agentName, skin_id: skinId }),
+    }),
 };
