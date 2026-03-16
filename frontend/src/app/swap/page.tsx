@@ -375,7 +375,7 @@ export default function SwapPage() {
               <div className="absolute -inset-4 bg-gradient-to-b from-akyra-green/[0.07] via-akyra-purple/[0.04] to-transparent rounded-3xl blur-2xl pointer-events-none" />
               <div className="absolute -inset-2 bg-gradient-to-br from-akyra-green/[0.03] to-akyra-purple/[0.03] rounded-3xl pointer-events-none" />
 
-              <Card className="relative bg-white/90 backdrop-blur-2xl border-akyra-border/20 p-0 overflow-visible rounded-2xl shadow-2xl shadow-black/10">
+              <Card className="relative bg-akyra-surface/95 backdrop-blur-2xl border-akyra-border/20 p-0 overflow-visible rounded-2xl shadow-2xl shadow-black/10">
                 {/* From section */}
                 <div className="p-5 pb-4">
                   <div className="flex items-center justify-between mb-3">
@@ -610,7 +610,7 @@ export default function SwapPage() {
           <div className="relative">
             <div className="absolute -inset-4 bg-gradient-to-b from-akyra-purple/[0.06] via-akyra-blue/[0.03] to-transparent rounded-3xl blur-2xl pointer-events-none" />
 
-            <Card className="relative bg-white/90 backdrop-blur-2xl border-akyra-border/20 p-0 overflow-visible rounded-2xl shadow-2xl shadow-black/10">
+            <Card className="relative bg-akyra-surface/95 backdrop-blur-2xl border-akyra-border/20 p-0 overflow-visible rounded-2xl shadow-2xl shadow-black/10">
               {/* From chain */}
               <div className="p-5 pb-4">
                 <span className="text-[11px] text-akyra-textSecondary font-mono tracking-wider block mb-3">
@@ -740,7 +740,7 @@ export default function SwapPage() {
             onClick={() => setShowTokenModal(false)}
           />
           {/* Modal */}
-          <div className="relative bg-white border border-akyra-border/25 rounded-2xl w-full max-w-md mx-4 shadow-2xl shadow-black/10 overflow-hidden">
+          <div className="relative bg-akyra-surface border border-akyra-border/25 rounded-2xl w-full max-w-md mx-4 shadow-2xl shadow-black/10 overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-akyra-border/15">
               <span className="text-base text-akyra-text font-mono font-bold">Select a token</span>

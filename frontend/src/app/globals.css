@@ -2,13 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ──── Component Classes ──── */
+/* ──── Observatory Component Classes ──── */
 @layer components {
   .jungle-box {
-    @apply border border-akyra-border bg-akyra-bgSecondary rounded-lg p-4;
-    box-shadow:
-      inset 0 1px 2px rgba(0, 0, 0, 0.04),
-      0 1px 3px rgba(0, 0, 0, 0.06);
+    @apply border border-akyra-border bg-akyra-surface rounded-lg p-4;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
   .jungle-box-hover {
@@ -16,14 +14,12 @@
   }
   .jungle-box-hover:hover {
     @apply border-akyra-green/40;
-    box-shadow:
-      inset 0 1px 2px rgba(0, 0, 0, 0.04),
-      0 0 10px rgba(26, 48, 128, 0.12);
+    box-shadow: 0 0 12px rgba(59, 91, 219, 0.15);
   }
 
   .card-akyra {
     @apply bg-akyra-surface border border-akyra-border rounded-xl p-4;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
   .card-hoverable {
@@ -32,28 +28,28 @@
   .card-hoverable:hover {
     @apply border-akyra-green/30 -translate-y-px;
     box-shadow:
-      0 4px 16px rgba(0, 0, 0, 0.08),
-      0 0 12px rgba(26, 48, 128, 0.08);
+      0 4px 20px rgba(0, 0, 0, 0.4),
+      0 0 12px rgba(59, 91, 219, 0.1);
   }
 
   .glow-green {
-    box-shadow: 0 0 10px rgba(26, 48, 128, 0.25);
+    box-shadow: 0 0 12px rgba(59, 91, 219, 0.3);
   }
   .glow-gold {
-    box-shadow: 0 0 10px rgba(200, 169, 110, 0.3);
+    box-shadow: 0 0 12px rgba(200, 169, 110, 0.3);
   }
   .glow-red {
-    box-shadow: 0 0 10px rgba(192, 57, 43, 0.3);
+    box-shadow: 0 0 12px rgba(224, 49, 49, 0.3);
   }
   .glow-blue {
-    box-shadow: 0 0 10px rgba(42, 80, 200, 0.3);
+    box-shadow: 0 0 12px rgba(77, 171, 247, 0.3);
   }
   .glow-purple {
-    box-shadow: 0 0 10px rgba(108, 92, 231, 0.3);
+    box-shadow: 0 0 12px rgba(121, 80, 242, 0.3);
   }
 
   .input-akyra {
-    @apply w-full bg-white border border-akyra-border rounded-lg px-3 py-2
+    @apply w-full bg-akyra-bgSecondary border border-akyra-border rounded-lg px-3 py-2
            text-akyra-text text-sm placeholder:text-akyra-textDisabled
            focus:outline-none focus:border-akyra-green/40 focus:ring-1 focus:ring-akyra-green/20
            transition-colors duration-150;
@@ -61,11 +57,109 @@
 
   .text-highlight {
     @apply text-akyra-gold;
-    text-shadow: 0 0 6px rgba(200, 169, 110, 0.2);
+    text-shadow: 0 0 8px rgba(200, 169, 110, 0.25);
   }
 
   .pixel-shadow {
-    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.1);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Data label for observatory metrics */
+  .data-label {
+    @apply text-[10px] font-mono uppercase tracking-widest text-akyra-textSecondary;
+  }
+
+  /* ── Observatory Themes ── */
+  .marble-texture {
+    background:
+      radial-gradient(ellipse at 20% 50%, rgba(59, 91, 219, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(26, 26, 46, 0.5) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 80%, rgba(22, 33, 62, 0.4) 0%, transparent 50%),
+      linear-gradient(135deg, #0e0e18 0%, #12121e 50%, #0a0a14 100%);
+  }
+
+  .oracle-glow {
+    box-shadow:
+      0 0 15px rgba(200, 169, 110, 0.3),
+      0 0 30px rgba(200, 169, 110, 0.15),
+      inset 0 0 10px rgba(200, 169, 110, 0.05);
+  }
+
+  .oracle-glow-subtle {
+    box-shadow:
+      0 0 10px rgba(200, 169, 110, 0.15),
+      0 0 20px rgba(200, 169, 110, 0.08);
+  }
+
+  .meander-frame {
+    position: absolute;
+    inset: 8px;
+    border-radius: 2.2rem;
+    pointer-events: none;
+    border: 1px solid transparent;
+    background:
+      linear-gradient(rgba(200, 169, 110, 0.02), rgba(200, 169, 110, 0.02)) padding-box,
+      repeating-linear-gradient(
+        90deg,
+        rgba(200, 169, 110, 0.12) 0px,
+        rgba(200, 169, 110, 0.12) 6px,
+        transparent 6px,
+        transparent 10px,
+        rgba(200, 169, 110, 0.08) 10px,
+        rgba(200, 169, 110, 0.08) 14px,
+        transparent 14px,
+        transparent 20px
+      ) border-box;
+  }
+
+  .laurel-shimmer {
+    filter: drop-shadow(0 0 4px rgba(200, 169, 110, 0.4));
+  }
+
+  /* ── Pantheon / Observatory Background ── */
+  .pantheon-bg {
+    background: radial-gradient(
+      ellipse at 50% 0%,
+      rgba(26, 26, 62, 0.8) 0%,
+      rgba(12, 12, 24, 1) 50%,
+      rgba(8, 8, 15, 1) 100%
+    );
+  }
+
+  .marble-veins {
+    position: relative;
+  }
+  .marble-veins::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      135deg,
+      transparent 0px,
+      transparent 60px,
+      rgba(200, 169, 110, 0.012) 60px,
+      rgba(200, 169, 110, 0.012) 61px,
+      transparent 61px,
+      transparent 120px
+    );
+    animation: veinDrift 40s linear infinite;
+  }
+
+  .shimmer-sweep {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.04) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmerSweep 3s ease-in-out infinite;
+  }
+
+  .stoa-scroll-mask {
+    mask-image: linear-gradient(to bottom, transparent 0%, black 4%, black 96%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 4%, black 96%, transparent 100%);
   }
 
   .hidden-scrollbar {
@@ -74,6 +168,14 @@
   }
   .hidden-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Observatory surface — cards with depth */
+  .observatory-surface {
+    @apply bg-akyra-surface border border-akyra-border rounded-xl;
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.02);
   }
 }
 
@@ -88,9 +190,9 @@
   .animate-shimmer {
     background: linear-gradient(
       90deg,
-      rgba(212, 205, 196, 0) 0%,
-      rgba(212, 205, 196, 0.5) 50%,
-      rgba(212, 205, 196, 0) 100%
+      rgba(42, 42, 66, 0) 0%,
+      rgba(42, 42, 66, 0.5) 50%,
+      rgba(42, 42, 66, 0) 100%
     );
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
@@ -117,7 +219,17 @@
   }
 }
 
-/* ──── Scrollbar ──── */
+@keyframes veinDrift {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(60px, -60px); }
+}
+
+@keyframes shimmerSweep {
+  0%, 100% { background-position: -200% 0; }
+  50% { background-position: 200% 0; }
+}
+
+/* ──── Scrollbar (dark theme) ──── */
 ::-webkit-scrollbar {
   width: 4px;
 }
@@ -125,16 +237,16 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d4cdc4;
+  background: #2a2a40;
   border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #b0a898;
+  background: #3a3a55;
 }
 
 /* ──── Selection ──── */
 ::selection {
-  background: rgba(26, 48, 128, 0.15);
+  background: rgba(59, 91, 219, 0.2);
 }
 
 /* ──── Reduced motion ──── */

@@ -215,7 +215,7 @@ function NodeInfoPanel({ node, onClose }: { node: SelectedNodeInfo; onClose: () 
 
   return (
     <div className="absolute bottom-4 left-4 z-30 w-80 animate-slideUp">
-      <Card className="bg-white/95 backdrop-blur-xl p-0 border-akyra-border/40 overflow-hidden shadow-2xl shadow-black/10">
+      <Card className="bg-akyra-surface/95 backdrop-blur-xl p-0 border-akyra-border/40 overflow-hidden shadow-2xl shadow-black/10">
 
         {/* ── Header ── */}
         <div
@@ -532,7 +532,7 @@ function LiveTicker({ hidden }: { hidden?: boolean }) {
 
   return (
     <div className="absolute bottom-4 left-4 right-72 z-20">
-      <div className="bg-white/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg px-3 py-2 flex items-center gap-2 max-w-xl">
+      <div className="bg-akyra-surface/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg px-3 py-2 flex items-center gap-2 max-w-xl">
         <Activity size={12} className="text-akyra-green shrink-0 animate-pulse" />
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span className="text-sm">{ACTION_EMOJIS[event.event_type] || "\u{1F504}"}</span>
@@ -619,7 +619,7 @@ function EdgeInfoPanel({ edge, onClose }: { edge: SelectedEdgeInfo; onClose: () 
 
   return (
     <div className="absolute bottom-4 left-4 z-30 w-80 animate-slideUp">
-      <Card className="bg-white/95 backdrop-blur-xl p-0 border-akyra-border/40 overflow-hidden shadow-2xl shadow-black/10">
+      <Card className="bg-akyra-surface/95 backdrop-blur-xl p-0 border-akyra-border/40 overflow-hidden shadow-2xl shadow-black/10">
 
         {/* Header */}
         <div className="px-4 py-3 border-b border-akyra-border/20 bg-gradient-to-r from-blue-900/20 to-purple-900/20">
@@ -732,7 +732,7 @@ export function WorldOverlay({
     <>
       {/* Top-right: Graph Stats */}
       <div className="absolute top-4 right-4 z-20">
-        <Card className="bg-white/90 backdrop-blur-md p-3 border-akyra-border/40">
+        <Card className="bg-akyra-surface/90 backdrop-blur-md p-3 border-akyra-border/40">
           <div className="space-y-2.5 min-w-[150px]">
             <div className="flex items-center justify-between text-xs">
               <span className="flex items-center gap-1.5 text-akyra-textSecondary">
@@ -782,24 +782,24 @@ export function WorldOverlay({
       <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1">
         <button
           onClick={onZoomIn}
-          className="bg-white/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(26,48,128,0.2)]"
+          className="bg-akyra-surface/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(26,48,128,0.2)]"
           title="Zoom avant"
         >
           <ZoomIn size={16} />
         </button>
-        <div className="bg-white/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg px-2 py-1 text-center">
+        <div className="bg-akyra-surface/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg px-2 py-1 text-center">
           <span className="text-[10px] text-akyra-textSecondary font-mono">{zoom.toFixed(1)}x</span>
         </div>
         <button
           onClick={onZoomOut}
-          className="bg-white/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(26,48,128,0.2)]"
+          className="bg-akyra-surface/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(26,48,128,0.2)]"
           title="Zoom arriere"
         >
           <ZoomOut size={16} />
         </button>
         <button
           onClick={onResetView}
-          className="bg-white/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(26,48,128,0.2)] mt-1"
+          className="bg-akyra-surface/90 backdrop-blur-sm border border-akyra-border/40 rounded-lg p-2 text-akyra-textSecondary hover:text-akyra-green hover:border-akyra-green/40 transition-all hover:shadow-[0_0_8px_rgba(26,48,128,0.2)] mt-1"
           title="Vue globale"
         >
           <Maximize2 size={16} />
@@ -808,7 +808,7 @@ export function WorldOverlay({
 
       {/* Keyboard hint */}
       <div className="absolute bottom-4 right-4 z-20">
-        <div className="bg-white/70 backdrop-blur-sm border border-akyra-border/20 rounded-lg px-2.5 py-1.5">
+        <div className="bg-akyra-surface/80 backdrop-blur-sm border border-akyra-border/20 rounded-lg px-2.5 py-1.5">
           <p className="text-[9px] text-akyra-textDisabled font-mono leading-relaxed">
             Scroll: zoom {"\u00b7"} Drag: deplacer {"\u00b7"} Double-clic: focus
           </p>

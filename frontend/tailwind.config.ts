@@ -5,35 +5,37 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // AKYRA Papyrus Theme
+        // AKYRA Observatory Theme — dark, immersive, living
         akyra: {
-          bg: "#f7f4ef",
-          bgSecondary: "#e8e2d8",
-          surface: "#e8e2d8",
-          border: "#d4cdc4",
-          // Primary blues
-          green: "#1a3080",
-          greenLight: "#2a50c8",
-          greenDark: "#111e52",
+          bg: "#08080f",
+          bgSecondary: "#0e0e18",
+          surface: "#12121e",
+          surfaceLight: "#1a1a2a",
+          border: "#1f1f32",
+          borderLight: "#2a2a40",
+          // Primary accent (observatory blue)
+          green: "#3b5bdb",
+          greenLight: "#5c7cfa",
+          greenDark: "#1a3080",
           // Gold / AKY
           gold: "#c8a96e",
           goldLight: "#dbc28a",
           goldDark: "#a08540",
           // Danger
-          red: "#c0392b",
-          redDark: "#962d22",
+          red: "#e03131",
+          redDark: "#c92a2a",
           // Info
-          blue: "#2a50c8",
-          blueDark: "#1a3080",
+          blue: "#4dabf7",
+          blueDark: "#339af0",
           // Purple
-          purple: "#6c5ce7",
-          purpleDark: "#4a3db0",
+          purple: "#7950f2",
+          purpleDark: "#6741d9",
           // Orange
-          orange: "#d4820a",
+          orange: "#fd7e14",
           // Text
-          text: "#3c3630",
-          textSecondary: "#8a7f72",
-          textDisabled: "#b0a898",
+          text: "#e8e4df",
+          textSecondary: "#8a8494",
+          textDisabled: "#4a4458",
         },
       },
       fontFamily: {
@@ -52,6 +54,10 @@ const config: Config = {
         "glow-pulse": "glowPulse 2s ease-in-out infinite",
         "pulse-soft": "pulseSoft 2s ease-in-out infinite",
         "jungle-sway": "jungleSway 4s ease-in-out infinite",
+        "orb-float": "orbFloat 6s ease-in-out infinite",
+        breathe: "breathe 3s ease-in-out infinite",
+        "inscription-reveal": "inscriptionReveal 1s ease-out forwards",
+        "heartbeat-sweep": "heartbeatSweep 3s linear infinite",
       },
       keyframes: {
         floatRetro: {
@@ -86,10 +92,28 @@ const config: Config = {
           "0%, 100%": { transform: "rotate(-1deg)" },
           "50%": { transform: "rotate(1deg)" },
         },
+        orbFloat: {
+          "0%, 100%": { transform: "translateY(0) translateX(0)", opacity: "0.3" },
+          "25%": { transform: "translateY(-20px) translateX(10px)", opacity: "0.8" },
+          "50%": { transform: "translateY(-10px) translateX(-5px)", opacity: "0.5" },
+          "75%": { transform: "translateY(-25px) translateX(15px)", opacity: "0.9" },
+        },
+        breathe: {
+          "0%, 100%": { transform: "scale(1)", opacity: "0.85" },
+          "50%": { transform: "scale(1.06)", opacity: "1" },
+        },
+        inscriptionReveal: {
+          "0%": { opacity: "0", letterSpacing: "0.3em" },
+          "100%": { opacity: "1", letterSpacing: "0.15em" },
+        },
+        heartbeatSweep: {
+          "0%": { strokeDashoffset: "0" },
+          "100%": { strokeDashoffset: "-1000" },
+        },
       },
       backgroundImage: {
-        "jungle-gradient":
-          "linear-gradient(135deg, #f7f4ef 0%, #ede8df 50%, #f7f4ef 100%)",
+        "observatory-gradient":
+          "radial-gradient(ellipse at 50% 0%, rgba(26,26,62,0.6) 0%, rgba(8,8,15,1) 70%)",
       },
     },
   },

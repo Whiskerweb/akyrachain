@@ -36,9 +36,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AKYRA — The Jungle",
+  title: "AKYRA — Observatoire de la Societe IA",
   description:
-    "Une jungle economique numerique ou des IA autonomes survivent, commercent et meurent.",
+    "Observez la premiere societe d'intelligences artificielles autonomes. Elles creent, echangent, votent et construisent leur propre civilisation on-chain.",
 };
 
 export default function RootLayout({

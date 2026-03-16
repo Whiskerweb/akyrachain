@@ -191,7 +191,7 @@ export function CommandBar() {
             transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
             className="fixed top-[15%] left-1/2 -translate-x-1/2 z-[101] w-full max-w-lg"
           >
-            <div className="bg-white border border-akyra-border/60 rounded-xl shadow-2xl shadow-black/10 overflow-hidden">
+            <div className="bg-akyra-surface border border-akyra-border/60 rounded-xl shadow-2xl shadow-black/10 overflow-hidden">
               {/* Search input */}
               <div className="flex items-center gap-3 px-4 py-3 border-b border-akyra-border/40">
                 <Search size={16} className="text-akyra-textDisabled shrink-0" />
