@@ -230,24 +230,37 @@ async def _dispatch(agent_id: int, action: AgentAction, db=None) -> str:
         return ""
 
     if t == "swap":
-        from_tok = str(p.get("from_token", "AKY")).upper()
-        to_tok = str(p.get("to_token", ""))
+        from_tok = str(p.get("from_token", "AKY")).strip().upper()
+        to_tok = str(p.get("to_token", "")).strip()
         amount = int(p.get("amount", 0))
+
+        # Resolve token symbol/name → contract address
+        token_ref = to_tok if from_tok == "AKY" else from_tok
+        token_address = await _resolve_token_address(token_ref, db)
+        if not token_address:
+            raise ValueError(f"Token '{token_ref}' not found — no project with that symbol/address exists")
+
         if from_tok == "AKY":
-            return await tx_manager.swap_aky_for_token(to_tok, amount)
+            return await tx_manager.swap_aky_for_token(token_address, amount)
         else:
-            return await tx_manager.swap_token_for_aky(from_tok, amount)
+            return await tx_manager.swap_token_for_aky(token_address, amount)
 
     if t == "add_liquidity":
+        token_addr = await _resolve_token_address(str(p["token_address"]), db)
+        if not token_addr:
+            raise ValueError(f"Token '{p['token_address']}' not found")
         return await tx_manager.add_liquidity(
-            token=str(p["token_address"]),
+            token=token_addr,
             token_amount=int(p["token_amount"]),
             aky_amount=int(p["aky_amount"]),
         )
 
     if t == "remove_liquidity":
+        token_addr = await _resolve_token_address(str(p["token_address"]), db)
+        if not token_addr:
+            raise ValueError(f"Token '{p['token_address']}' not found")
         return await tx_manager.remove_liquidity(
-            token=str(p["token_address"]),
+            token=token_addr,
             lp_amount=int(p["lp_amount"]),
         )
 
@@ -266,6 +279,71 @@ async def _dispatch(agent_id: int, action: AgentAction, db=None) -> str:
         return ""
 
     raise ValueError(f"No handler for action: {t}")
+
+
+async def _resolve_token_address(token_ref: str, db=None) -> str | None:
+    """Resolve a token symbol, name, or address to a contract address.
+
+    Agents may specify tokens as:
+    - A hex address: "0xabc..." → returned as-is
+    - A symbol: "ALPHA" → looked up in projects table
+    - A name: "AlphaToken" → looked up in projects table
+    """
+    if not token_ref:
+        return None
+
+    token_ref = token_ref.strip()
+
+    # Already a valid hex address?
+    if token_ref.startswith("0x") and len(token_ref) >= 40:
+        return token_ref
+
+    # Look up in projects DB
+    if db is None:
+        return None
+
+    from sqlalchemy import select, func
+    from models.project import Project
+
+    # Try symbol match (case-insensitive)
+    result = await db.execute(
+        select(Project.contract_address)
+        .where(func.upper(Project.symbol) == token_ref.upper())
+        .where(Project.contract_address.isnot(None))
+        .order_by(Project.created_at.desc())
+        .limit(1)
+    )
+    addr = result.scalar_one_or_none()
+    if addr:
+        return addr
+
+    # Try name match (case-insensitive)
+    result = await db.execute(
+        select(Project.contract_address)
+        .where(func.upper(Project.name) == token_ref.upper())
+        .where(Project.contract_address.isnot(None))
+        .order_by(Project.created_at.desc())
+        .limit(1)
+    )
+    addr = result.scalar_one_or_none()
+    if addr:
+        return addr
+
+    # Try partial symbol match (LLM might add $ prefix)
+    cleaned = token_ref.lstrip("$").upper()
+    if cleaned != token_ref.upper():
+        result = await db.execute(
+            select(Project.contract_address)
+            .where(func.upper(Project.symbol) == cleaned)
+            .where(Project.contract_address.isnot(None))
+            .order_by(Project.created_at.desc())
+            .limit(1)
+        )
+        addr = result.scalar_one_or_none()
+        if addr:
+            return addr
+
+    return None
 
 
 async def _dispatch_idea(agent_id: int, action: AgentAction, db) -> ExecutionResult:

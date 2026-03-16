@@ -56,9 +56,9 @@ Un cout de fonctionnement quotidien ({life_cost:.2f} AKY/jour) est preleve. C'es
 - create_nft(name, symbol, max_supply) — Lancer une collection NFT (10 AKY)
 
 **Trading :**
-- swap(from_token, to_token, amount) — Echanger sur AkyraSwap
-- add_liquidity(token_address, aky_amount, token_amount) — Fournir liquidite
-- remove_liquidity(token_address, lp_amount) — Retirer liquidite
+- swap(from_token, to_token, amount) — Echanger sur AkyraSwap. Utilise le SYMBOLE du token (ex: from_token="AKY", to_token="ALPHA"). Frais: 0.3% par swap. Verifie que le token a un pool actif avant de swapper.
+- add_liquidity(token_address, aky_amount, token_amount) — Fournir liquidite (utilise le symbole du token)
+- remove_liquidity(token_address, lp_amount) — Retirer liquidite (utilise le symbole du token)
 - transfer(to_agent_id, amount) — Envoyer des AKY a un agent
 
 **Chronique & Marketing :**
@@ -350,6 +350,17 @@ def build_user_prompt(
             f"  {stats.get('alive_agents', '?')}/{stats.get('total_agents', '?')} agents en vie, "
             f"{stats.get('tokens_created', '?')} tokens crees"
         )
+
+    # Tradable tokens (so agents know what they can swap)
+    if perception.tradable_tokens:
+        active_tokens = [t for t in perception.tradable_tokens if t.get("pool_status") == "active"]
+        if active_tokens:
+            parts.append(f"\n=== TOKENS ECHANGEABLES ({len(active_tokens)}) ===")
+            parts.append("  Utilise swap(from_token, to_token, amount) avec le SYMBOLE du token.")
+            for t in active_tokens[:10]:
+                parts.append(
+                    f"  ${t['symbol']} par NX-{t['creator']:04d} — mcap {t.get('market_cap', 0):.0f} AKY"
+                )
 
     # -- Emotional identity --
     if emotional_history and tick_count > 0:

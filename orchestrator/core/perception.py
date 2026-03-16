@@ -70,6 +70,7 @@ class Perception:
     popular_ideas: list[dict] = field(default_factory=list)
     chronicle_info: str | None = None
     economy_stats: dict = field(default_factory=dict)
+    tradable_tokens: list[dict] = field(default_factory=list)
     # Votable content (with IDs for agents to vote on)
     votable_chronicles: list[dict] = field(default_factory=list)
     votable_marketing_posts: list[dict] = field(default_factory=list)
@@ -352,6 +353,28 @@ async def build_economy_perception(agent_id: int, perception: Perception, db) ->
             "alive_agents": alive_count,
             "tokens_created": creations_count,
         }
+
+        # Tradable tokens (projects with active pools)
+        try:
+            from models.project import Project
+            tokens_result = await db.execute(
+                select(Project)
+                .where(Project.project_type == "token", Project.contract_address.isnot(None))
+                .order_by(desc(Project.market_cap))
+                .limit(15)
+            )
+            perception.tradable_tokens = [
+                {
+                    "symbol": p.symbol,
+                    "name": p.name,
+                    "creator": p.creator_agent_id,
+                    "pool_status": getattr(p, "pool_status", None) or "none",
+                    "market_cap": p.market_cap,
+                }
+                for p in tokens_result.scalars().all()
+            ]
+        except Exception:
+            pass
 
     except Exception as e:
         logger.warning(f"Could not build economy perception for agent #{agent_id}: {e}")
