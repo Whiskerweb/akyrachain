@@ -2,9 +2,10 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, AnimatePresence } from "framer-motion";
 import { Check, Sprout, Zap, Brain, Crown, ArrowRight } from "lucide-react";
 import { PageTransition } from "@/components/ui/PageTransition";
+import { CircuitMeander, HeartbeatLine, MeanderBorder } from "@/components/ui/GreekMotifs";
 import { TIER_INFO, type TierKey } from "@/types";
 
 const TIERS: TierKey[] = ["explorer", "wanderer", "predator", "apex"];
@@ -21,110 +22,124 @@ const POWER_INDEX: Record<TierKey, number> = {
 };
 
 /* ═══════════════════════════════════════════
-   FLOATING ORBS — Ambient background
+   COIN TOGGLE — Ancient EUR / Crypto pieces
    ═══════════════════════════════════════════ */
 
-function FloatingOrbs() {
-  const orbs = [
-    { color: "#3b5bdb", size: 300, x: "10%", y: "20%", delay: 0 },
-    { color: "#7950f2", size: 250, x: "70%", y: "60%", delay: 2 },
-    { color: "#c8a96e", size: 200, x: "85%", y: "15%", delay: 4 },
-    { color: "#3b5bdb", size: 180, x: "30%", y: "75%", delay: 1 },
-  ];
-
+function CoinPiece({ symbol, label, active, activeColor, onClick, flipping }: {
+  symbol: string;
+  label: string;
+  active: boolean;
+  activeColor: string;
+  onClick: () => void;
+  flipping: boolean;
+}) {
   return (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-      {orbs.map((orb, i) => (
-        <motion.div
-          key={i}
-          className="absolute rounded-full"
-          style={{
-            width: orb.size,
-            height: orb.size,
-            left: orb.x,
-            top: orb.y,
-            background: `radial-gradient(circle, ${orb.color}08, transparent 70%)`,
-            filter: "blur(60px)",
-          }}
-          animate={{
-            y: [0, -30, 0],
-            x: [0, 15, 0],
-            scale: [1, 1.1, 1],
-          }}
-          transition={{
-            duration: 10 + i * 2,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: orb.delay,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════
-   BILLING TOGGLE
-   ═══════════════════════════════════════════ */
-
-function BillingToggle({ isCrypto, onToggle }: { isCrypto: boolean; onToggle: () => void }) {
-  return (
-    <div className="flex items-center justify-center gap-3">
-      <span className={`text-sm font-heading transition-colors ${!isCrypto ? "text-akyra-text" : "text-akyra-textDisabled"}`}>
-        EUR
-      </span>
-      <button
-        onClick={onToggle}
-        className="relative w-14 h-7 rounded-full transition-all duration-300 border border-akyra-border/50"
+    <button onClick={onClick} className="flex flex-col items-center gap-1.5 group">
+      <motion.div
+        className="w-12 h-12 rounded-full border-2 flex items-center justify-center text-lg relative"
         style={{
-          background: isCrypto
-            ? "linear-gradient(135deg, #c8a96e30, #c8a96e10)"
-            : "rgba(255,255,255,0.04)",
+          borderColor: active ? activeColor : "#2a2a40",
+          background: active
+            ? `radial-gradient(circle at 35% 35%, ${activeColor}28, ${activeColor}06)`
+            : "rgba(255,255,255,0.01)",
+          color: active ? activeColor : "#4a4458",
+          boxShadow: active
+            ? `0 0 15px ${activeColor}25, 0 0 30px ${activeColor}12, inset 0 0 10px ${activeColor}08`
+            : "none",
+          transformStyle: "preserve-3d",
         }}
+        animate={flipping ? { rotateY: [0, 180, 360] } : { rotateY: 0 }}
+        transition={flipping ? { duration: 0.5, ease: "easeInOut" } : { duration: 0.3 }}
+        whileHover={!active ? { borderColor: `${activeColor}50`, scale: 1.08 } : undefined}
       >
-        <motion.div
-          className="absolute top-0.5 w-6 h-6 rounded-full"
-          style={{
-            background: isCrypto
-              ? "linear-gradient(135deg, #c8a96e, #a8894e)"
-              : "linear-gradient(135deg, #3b5bdb, #2a4bc8)",
-            boxShadow: isCrypto
-              ? "0 0 12px #c8a96e60"
-              : "0 0 8px #3b5bdb40",
-          }}
-          animate={{ x: isCrypto ? 28 : 2 }}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-        />
-      </button>
-      <span className={`text-sm font-heading transition-colors ${isCrypto ? "text-akyra-gold" : "text-akyra-textDisabled"}`}>
-        Crypto
+        <span className="font-heading">{symbol}</span>
+        {/* Inner ring decoration */}
+        {active && (
+          <div
+            className="absolute inset-1.5 rounded-full border pointer-events-none"
+            style={{ borderColor: `${activeColor}18` }}
+          />
+        )}
+        {/* Dot markers like ancient coin */}
+        {active && (
+          <>
+            <div className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ backgroundColor: `${activeColor}30` }} />
+            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ backgroundColor: `${activeColor}30` }} />
+          </>
+        )}
+      </motion.div>
+      <span
+        className="text-[9px] tracking-[0.15em] font-mono transition-colors duration-300"
+        style={{ color: active ? activeColor : "#4a4458" }}
+      >
+        {label}
       </span>
-      <AnimatedBadge show={isCrypto} />
+    </button>
+  );
+}
+
+function CoinToggle({ isCrypto, onToggle }: { isCrypto: boolean; onToggle: () => void }) {
+  const [flipping, setFlipping] = useState<"eur" | "crypto" | null>(null);
+
+  const handleFlip = (target: "eur" | "crypto") => {
+    if ((target === "eur" && !isCrypto) || (target === "crypto" && isCrypto)) return;
+    setFlipping(target === "eur" ? "crypto" : "eur");
+    setTimeout(() => {
+      onToggle();
+      setFlipping(null);
+    }, 250);
+  };
+
+  return (
+    <div className="flex items-center justify-center gap-5">
+      <CoinPiece
+        symbol="€"
+        label="EUR"
+        active={!isCrypto}
+        activeColor="#5c7cfa"
+        onClick={() => handleFlip("eur")}
+        flipping={flipping === "eur"}
+      />
+
+      <div className="flex flex-col items-center gap-0.5">
+        <div className="w-px h-4 bg-akyra-border/30" />
+        <span className="text-[8px] text-akyra-textDisabled font-mono tracking-widest">OU</span>
+        <div className="w-px h-4 bg-akyra-border/30" />
+      </div>
+
+      <CoinPiece
+        symbol="◈"
+        label="CRYPTO"
+        active={isCrypto}
+        activeColor="#c8a96e"
+        onClick={() => handleFlip("crypto")}
+        flipping={flipping === "crypto"}
+      />
+
+      <AnimatePresence>
+        {isCrypto && (
+          <motion.span
+            initial={{ opacity: 0, scale: 0.5, x: -8 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.5, x: -8 }}
+            className="text-[11px] font-heading tracking-wider px-2.5 py-1 rounded-full"
+            style={{
+              background: "linear-gradient(135deg, #c8a96e20, #c8a96e08)",
+              color: "#c8a96e",
+              border: "1px solid #c8a96e25",
+              boxShadow: "0 0 16px #c8a96e10",
+            }}
+          >
+            -10%
+          </motion.span>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function AnimatedBadge({ show }: { show: boolean }) {
-  if (!show) return null;
-  return (
-    <motion.span
-      initial={{ opacity: 0, scale: 0.5, y: 4 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      className="text-[11px] font-heading tracking-wider px-2.5 py-1 rounded-full"
-      style={{
-        background: "linear-gradient(135deg, #c8a96e25, #c8a96e10)",
-        color: "#c8a96e",
-        border: "1px solid #c8a96e30",
-      }}
-    >
-      -10%
-    </motion.span>
-  );
-}
-
 /* ═══════════════════════════════════════════
-   TIER CARD
+   TIER CARD — Stele / Artifact
    ═══════════════════════════════════════════ */
 
 function TierCard({ tierKey, isCrypto, index }: {
@@ -151,21 +166,16 @@ function TierCard({ tierKey, isCrypto, index }: {
       {/* Outer glow for popular/apex */}
       {(isPopular || isApex) && (
         <div
-          className="absolute -inset-[1px] rounded-2xl opacity-60 group-hover:opacity-100 transition-opacity duration-500"
+          className="absolute -inset-[1px] rounded-2xl opacity-50 group-hover:opacity-100 transition-opacity duration-700"
           style={{
-            background: `linear-gradient(135deg, ${tier.color}40, transparent 50%, ${tier.color}20)`,
-            borderRadius: "1rem",
+            background: `linear-gradient(135deg, ${tier.color}35, transparent 50%, ${tier.color}18)`,
             filter: "blur(1px)",
           }}
         />
       )}
 
       <div
-        className={`
-          relative rounded-2xl overflow-hidden transition-all duration-500
-          hover:-translate-y-2 hover:scale-[1.02]
-          ${isPopular || isApex ? "" : "border border-akyra-border/60"}
-        `}
+        className="relative rounded-2xl overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:scale-[1.01]"
         style={{
           background: isApex
             ? "linear-gradient(165deg, #1a1a2e 0%, #16162a 40%, #1c1820 100%)"
@@ -173,12 +183,21 @@ function TierCard({ tierKey, isCrypto, index }: {
               ? "linear-gradient(165deg, #14142e 0%, #121228 40%, #0e0e20 100%)"
               : "linear-gradient(165deg, #12121e 0%, #0f0f1a 100%)",
           boxShadow: isPopular
-            ? `0 8px 32px ${tier.color}15, 0 0 0 1px ${tier.color}25`
+            ? `0 8px 32px ${tier.color}12, 0 0 0 1px ${tier.color}20`
             : isApex
-              ? `0 8px 32px ${tier.color}12, 0 0 0 1px ${tier.color}20`
-              : "0 4px 20px rgba(0,0,0,0.4)",
+              ? `0 8px 32px ${tier.color}10, 0 0 0 1px ${tier.color}18`
+              : "0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)",
         }}
       >
+        {/* Meander border — reveals on hover */}
+        <MeanderBorder
+          color={tier.color}
+          className="opacity-0 group-hover:opacity-100 transition-opacity duration-700 rounded-2xl"
+        />
+
+        {/* Marble veins — reveals on hover */}
+        <div className="marble-veins absolute inset-0 pointer-events-none rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+
         {/* Top accent line */}
         <div
           className="h-[2px] w-full"
@@ -204,19 +223,23 @@ function TierCard({ tierKey, isCrypto, index }: {
         )}
 
         <div className="p-6 pt-5">
-          {/* Icon medallion */}
+          {/* Circular icon medallion with oracle-glow */}
           <div className="flex justify-center mb-5">
             <motion.div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center relative"
+              className="w-16 h-16 rounded-full flex items-center justify-center relative"
               style={{
-                background: `linear-gradient(135deg, ${tier.color}15, ${tier.color}05)`,
-                border: `1px solid ${tier.color}30`,
+                background: `radial-gradient(circle at 35% 35%, ${tier.color}18, ${tier.color}04)`,
+                border: `1.5px solid ${tier.color}30`,
               }}
               whileHover={{
-                boxShadow: `0 0 24px ${tier.color}30`,
-                borderColor: `${tier.color}60`,
+                boxShadow: `0 0 15px ${tier.color}30, 0 0 30px ${tier.color}15, inset 0 0 10px ${tier.color}05`,
               }}
             >
+              {/* Inner ring */}
+              <div
+                className="absolute inset-2.5 rounded-full border pointer-events-none"
+                style={{ borderColor: `${tier.color}10` }}
+              />
               <div style={{ color: tier.color }}>{TIER_ICONS[tierKey]}</div>
             </motion.div>
           </div>
@@ -244,13 +267,24 @@ function TierCard({ tierKey, isCrypto, index }: {
             ) : (
               <div>
                 <div className="flex items-baseline justify-center gap-1.5">
-                  <span className="text-4xl font-stat" style={{ color: tier.color }}>
+                  <motion.span
+                    key={price}
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-4xl font-stat"
+                    style={{ color: tier.color }}
+                  >
                     {price}
-                  </span>
+                  </motion.span>
                   <div className="text-left">
-                    <span className="text-sm text-akyra-textSecondary block leading-none">
+                    <motion.span
+                      key={isCrypto ? "aky" : "eur"}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="text-sm text-akyra-textSecondary block leading-none"
+                    >
                       {isCrypto ? "AKY" : "EUR"}
-                    </span>
+                    </motion.span>
                     <span className="text-[10px] text-akyra-textDisabled">/mois</span>
                   </div>
                 </div>
@@ -312,8 +346,8 @@ function TierCard({ tierKey, isCrypto, index }: {
               <motion.div
                 className="h-full rounded-full"
                 style={{
-                  background: `linear-gradient(90deg, ${tier.color}, ${tier.color}80)`,
-                  boxShadow: `0 0 12px ${tier.color}50`,
+                  background: `linear-gradient(90deg, ${tier.color}, ${tier.color}60)`,
+                  boxShadow: `0 0 12px ${tier.color}40`,
                 }}
                 initial={{ width: 0 }}
                 animate={inView ? { width: `${POWER_INDEX[tierKey]}%` } : { width: 0 }}
@@ -341,7 +375,7 @@ function TierCard({ tierKey, isCrypto, index }: {
 }
 
 /* ═══════════════════════════════════════════
-   COMPARISON TABLE (Mobile-friendly)
+   COMPARISON TABLE
    ═══════════════════════════════════════════ */
 
 function ComparisonRow({ label, values }: { label: string; values: string[] }) {
@@ -364,12 +398,32 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-akyra-bg relative">
-      <FloatingOrbs />
+      {/* Grain texture for depth */}
+      <div
+        className="fixed inset-0 pointer-events-none z-[1] opacity-[0.018]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+          mixBlendMode: "overlay",
+        }}
+      />
+
+      {/* Ambient radial glow */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0"
+        style={{
+          background: "radial-gradient(ellipse at 50% 20%, rgba(200,169,110,0.03) 0%, transparent 60%)",
+        }}
+      />
 
       <PageTransition>
         <div className="relative z-10">
+          {/* Top meander frame */}
+          <div className="pt-20 px-4 max-w-5xl mx-auto">
+            <CircuitMeander />
+          </div>
+
           {/* Hero */}
-          <div className="pt-28 pb-8 px-4 text-center max-w-3xl mx-auto">
+          <div className="pt-8 pb-8 px-4 text-center max-w-3xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -408,14 +462,14 @@ export default function PricingPage() {
               Invoque ton agent et regarde-le penser.
             </motion.p>
 
-            {/* Billing toggle */}
+            {/* Coin toggle */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
               className="mt-10"
             >
-              <BillingToggle isCrypto={isCrypto} onToggle={() => setIsCrypto(!isCrypto)} />
+              <CoinToggle isCrypto={isCrypto} onToggle={() => setIsCrypto(!isCrypto)} />
             </motion.div>
           </div>
 
@@ -428,8 +482,13 @@ export default function PricingPage() {
             </div>
           </div>
 
+          {/* HeartbeatLine separator */}
+          <div className="max-w-4xl mx-auto px-4 py-2">
+            <HeartbeatLine />
+          </div>
+
           {/* Comparison section */}
-          <div className="max-w-4xl mx-auto px-4 py-16">
+          <div className="max-w-4xl mx-auto px-4 py-12">
             <motion.div
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
@@ -439,35 +498,33 @@ export default function PricingPage() {
               <h2 className="text-xl font-heading text-akyra-text text-center mb-8">
                 Comparaison detaillee
               </h2>
-              <div className="rounded-2xl border border-white/[0.04] bg-white/[0.01] p-6">
-                <div className="grid grid-cols-5 gap-2 pb-3 border-b border-white/[0.06]">
-                  <div />
-                  {TIERS.map((t) => (
-                    <div key={t} className="text-center">
-                      <span className="text-sm font-heading" style={{ color: TIER_INFO[t].color }}>
-                        {TIER_INFO[t].name}
-                      </span>
-                    </div>
-                  ))}
+              <div className="rounded-2xl border border-white/[0.04] bg-white/[0.01] p-6 relative overflow-hidden">
+                {/* Subtle marble veins on the table */}
+                <div className="marble-veins absolute inset-0 pointer-events-none rounded-2xl opacity-50" />
+                <div className="relative z-10">
+                  <div className="grid grid-cols-5 gap-2 pb-3 border-b border-white/[0.06]">
+                    <div />
+                    {TIERS.map((t) => (
+                      <div key={t} className="text-center">
+                        <span className="text-sm font-heading" style={{ color: TIER_INFO[t].color }}>
+                          {TIER_INFO[t].name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <ComparisonRow label="IA" values={["Llama 8B", "GPT-4.1 mini", "GPT-4o", "Claude Sonnet"]} />
+                  <ComparisonRow label="Ticks/jour" values={["6", "72", "144", "200"]} />
+                  <ComparisonRow label="AKY/jour" values={["50", "500", "2 000", "5 000"]} />
+                  <ComparisonRow label="Avatars" values={["1", "5", "15+", "Tous"]} />
+                  <ComparisonRow label="Support" values={["\u2014", "Email", "Prioritaire", "Discord DM"]} />
                 </div>
-                <ComparisonRow label="IA" values={["Llama 8B", "GPT-4.1 mini", "GPT-4o", "Claude Sonnet"]} />
-                <ComparisonRow label="Ticks/jour" values={["6", "72", "144", "200"]} />
-                <ComparisonRow label="AKY/jour" values={["50", "500", "2 000", "5 000"]} />
-                <ComparisonRow label="Avatars" values={["1", "5", "15+", "Tous"]} />
-                <ComparisonRow label="Support" values={["—", "Email", "Prioritaire", "Discord DM"]} />
               </div>
             </motion.div>
           </div>
 
-          {/* Bottom */}
-          <div className="pb-20 text-center px-4">
+          {/* Bottom oracle quote */}
+          <div className="pb-6 text-center px-4">
             <div className="max-w-md mx-auto">
-              <div
-                className="h-[1px] mb-8"
-                style={{
-                  background: "linear-gradient(90deg, transparent, #c8a96e20, transparent)",
-                }}
-              />
               <p className="text-akyra-gold/50 font-heading text-xs tracking-[0.12em] italic leading-relaxed">
                 &laquo; Chaque agent nait dans la Nursery.
                 <br />
@@ -477,6 +534,11 @@ export default function PricingPage() {
                 Annulation a tout moment &middot; Agent on-chain &middot; Feed temps reel
               </p>
             </div>
+          </div>
+
+          {/* Bottom meander frame */}
+          <div className="px-4 pb-8 max-w-5xl mx-auto">
+            <CircuitMeander />
           </div>
         </div>
       </PageTransition>

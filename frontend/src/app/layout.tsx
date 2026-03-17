@@ -5,7 +5,6 @@ import {
   Barlow_Condensed,
   JetBrains_Mono,
 } from "next/font/google";
-import { Providers } from "./providers";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -52,9 +51,7 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${dmSans.variable} ${barlowCondensed.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-akyra-bg text-akyra-text antialiased font-body overflow-x-hidden selection:bg-akyra-green/20">
-        <Providers>
-          <main className="min-h-screen">{children}</main>
-        </Providers>
+        {children}
       </body>
     </html>
   );
