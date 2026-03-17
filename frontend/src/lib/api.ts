@@ -339,10 +339,10 @@ export const billingAPI = {
   subscription: () =>
     fetchAPI<Subscription>("/api/billing/subscription"),
 
-  checkout: (tier: string, successUrl: string, cancelUrl: string) =>
+  checkout: (modelId: string, maxTicks: number, priceCents: number, successUrl: string, cancelUrl: string) =>
     fetchAPI<{ checkout_url: string }>("/api/billing/checkout", {
       method: "POST",
-      body: JSON.stringify({ tier, success_url: successUrl, cancel_url: cancelUrl }),
+      body: JSON.stringify({ model_id: modelId, max_ticks: maxTicks, price_cents: priceCents, success_url: successUrl, cancel_url: cancelUrl }),
     }),
 
   portal: (returnUrl: string) =>

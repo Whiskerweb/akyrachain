@@ -80,6 +80,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Global exception handler — ensures CORS headers are present even on 500 errors
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error: {exc}", exc_info=True)
+    from starlette.responses import JSONResponse
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
+
+
 # Register routers
 app.include_router(auth.router)
 app.include_router(agents.router)
@@ -99,6 +115,15 @@ app.include_router(governor.router)
 app.include_router(knowledge.router)
 app.include_router(governance.router)
 app.include_router(billing.router)
+
+# Consensus API (peer-to-peer BFT)
+try:
+    from config import get_settings
+    if get_settings().consensus_enabled:
+        from consensus.api import router as consensus_router
+        app.include_router(consensus_router)
+except Exception:
+    pass  # Consensus module not available or not enabled
 
 
 @app.get("/health")

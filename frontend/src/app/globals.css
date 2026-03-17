@@ -268,6 +268,80 @@
   animation: gaugeGrow 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* ──── Landing Page ──── */
+
+.landing-hero-bg {
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(200, 169, 110, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 80%, rgba(59, 91, 219, 0.04) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 60%, rgba(121, 80, 242, 0.03) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 0%, rgba(26, 26, 62, 0.9) 0%, rgba(8, 8, 15, 1) 70%);
+}
+
+.landing-section-gradient {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(26, 26, 62, 0.3) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(8, 8, 15, 0) 0%, rgba(12, 12, 24, 0.5) 100%);
+}
+
+.landing-cta-gradient {
+  background:
+    radial-gradient(ellipse at 50% 100%, rgba(200, 169, 110, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 0%, rgba(26, 26, 62, 0.5) 0%, rgba(8, 8, 15, 1) 70%);
+}
+
+@keyframes float-particle {
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-100vh) translateX(var(--drift, 20px)); opacity: 0; }
+}
+
+.gold-particle {
+  position: absolute;
+  width: var(--size, 2px);
+  height: var(--size, 2px);
+  background: radial-gradient(circle, rgba(200, 169, 110, 0.8), transparent);
+  border-radius: 50%;
+  animation: float-particle var(--duration, 8s) var(--delay, 0s) linear infinite;
+  pointer-events: none;
+}
+
+/* Greek column silhouette */
+.temple-columns {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.03;
+}
+
+.pillar-card {
+  @apply relative bg-akyra-surface/60 border border-akyra-border/60 rounded-2xl p-6 backdrop-blur-sm;
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pillar-card:hover {
+  border-color: rgba(200, 169, 110, 0.2);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(200, 169, 110, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transform: translateY(-2px);
+}
+
+.world-card {
+  @apply relative bg-akyra-surface/40 border border-akyra-border/40 rounded-xl p-5 backdrop-blur-sm overflow-hidden;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.world-card:hover {
+  border-color: var(--world-color, rgba(200, 169, 110, 0.3));
+  box-shadow: 0 0 20px var(--world-glow, rgba(200, 169, 110, 0.08));
+  transform: translateY(-1px);
+}
+
 /* ──── Scrollbar (dark theme) ──── */
 ::-webkit-scrollbar {
   width: 4px;

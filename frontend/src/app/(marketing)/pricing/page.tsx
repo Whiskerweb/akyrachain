@@ -294,7 +294,16 @@ function TierCard({ tierKey, isCrypto, index }: {
 
           {/* CTA Button */}
           <button
-            onClick={() => router.push(`/onboarding?tier=${tierKey}`)}
+            onClick={() => {
+              const defaults: Record<string, { model: string; ticks: number }> = {
+                explorer: { model: "llama-3.1-8b", ticks: 6 },
+                wanderer: { model: "gpt-4.1-mini", ticks: 72 },
+                predator: { model: "gpt-4o", ticks: 144 },
+                apex: { model: "claude-sonnet-4-6", ticks: 200 },
+              };
+              const d = defaults[tierKey] || defaults.wanderer;
+              router.push(`/onboarding?model=${d.model}&ticks=${d.ticks}`);
+            }}
             className="w-full py-3 rounded-xl text-sm font-heading tracking-wider transition-all duration-300 flex items-center justify-center gap-2 group/btn mb-6"
             style={{
               background: isApex

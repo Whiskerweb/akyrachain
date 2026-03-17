@@ -14,8 +14,12 @@ import { StepEidolon } from "@/components/avatar/steps/StepEidolon";
 import { StepGenesis } from "@/components/avatar/steps/StepGenesis";
 import { billingAPI, agentsAPI, customizeAPI } from "@/lib/api";
 import { useAkyraStore } from "@/stores/akyraStore";
-import { TIER_INFO, type TierKey } from "@/types";
 import type { AvatarConfig, Specialization, SkinKey } from "@/types/avatar";
+import {
+  calculatePrice,
+  getModelCategory,
+  CATEGORY_COLORS,
+} from "@/types/avatar";
 
 /* ═══════════════════════════════════════════
    MAIN PAGE
@@ -42,8 +46,11 @@ function OnboardingContent() {
   const [mounted, setMounted] = useState(false);
 
   const [step, setStep] = useState(0);
-  const [tier, setTier] = useState<TierKey>(
-    (searchParams.get("tier") as TierKey) || "wanderer",
+  const [modelId, setModelId] = useState(
+    searchParams.get("model") || "gpt-4.1-mini",
+  );
+  const [maxTicks, setMaxTicks] = useState(
+    Number(searchParams.get("ticks")) || 72,
   );
   const [agentName, setAgentName] = useState("");
   const [specialization, setSpecialization] = useState<Specialization>("builder");
@@ -55,13 +62,15 @@ function OnboardingContent() {
     setMounted(true);
   }, []);
 
-  // DEV: temporarily skip login redirect for visual testing
-  // useEffect(() => { if (mounted && !token) router.push("/login"); }, [mounted, token, router]);
+  useEffect(() => { if (mounted && !token) router.push("/login"); }, [mounted, token, router]);
 
-  const tierInfo = TIER_INFO[tier];
+  const category = getModelCategory(modelId);
+  const categoryColor = CATEGORY_COLORS[category].color;
+  const pricing = calculatePrice(modelId, maxTicks);
 
   const config: AvatarConfig = {
-    tier,
+    modelId,
+    maxTicks,
     specialization,
     skin,
     name: agentName,
@@ -89,11 +98,15 @@ function OnboardingContent() {
 
     setIsDeploying(true);
     try {
-      if (tier !== "explorer") {
+      if (!pricing.isFree) {
+        const successUrl = `${window.location.origin}/onboarding?model=${encodeURIComponent(modelId)}&ticks=${maxTicks}&step=deploy&name=${encodeURIComponent(agentName)}&skin=${skin}&spec=${specialization}`;
+        const cancelUrl = `${window.location.origin}/onboarding?model=${encodeURIComponent(modelId)}&ticks=${maxTicks}`;
         const { checkout_url } = await billingAPI.checkout(
-          tier,
-          `${window.location.origin}/onboarding?tier=${tier}&step=deploy&name=${encodeURIComponent(agentName)}&skin=${skin}&spec=${specialization}`,
-          `${window.location.origin}/onboarding?tier=${tier}`,
+          modelId,
+          maxTicks,
+          Math.round(pricing.monthlyEUR * 100),
+          successUrl,
+          cancelUrl,
         );
         window.location.href = checkout_url;
         return;
@@ -124,11 +137,15 @@ function OnboardingContent() {
     const urlName = searchParams.get("name");
     const urlSkin = searchParams.get("skin");
     const urlSpec = searchParams.get("spec");
+    const urlModel = searchParams.get("model");
+    const urlTicks = searchParams.get("ticks");
 
     if (urlStep === "deploy") {
       if (urlName) setAgentName(decodeURIComponent(urlName));
       if (urlSkin) setSkin(urlSkin as SkinKey);
       if (urlSpec) setSpecialization(urlSpec as Specialization);
+      if (urlModel) setModelId(urlModel);
+      if (urlTicks) setMaxTicks(Number(urlTicks));
       setStep(3);
 
       (async () => {
@@ -154,7 +171,7 @@ function OnboardingContent() {
     }
   }, [mounted, searchParams, router]);
 
-  if (!mounted) return null;
+  if (!mounted || !token) return null;
 
   return (
     <div className="min-h-screen pantheon-bg relative overflow-hidden">
@@ -167,11 +184,11 @@ function OnboardingContent() {
         }}
       />
 
-      {/* Ambient tier-colored background */}
+      {/* Ambient category-colored background */}
       <motion.div
         className="absolute inset-0 pointer-events-none"
         animate={{
-          background: `radial-gradient(ellipse at 50% 20%, ${tierInfo.color}12 0%, ${tierInfo.color}04 30%, transparent 65%)`,
+          background: `radial-gradient(ellipse at 50% 20%, ${categoryColor}12 0%, ${categoryColor}04 30%, transparent 65%)`,
         }}
         transition={{ duration: 1.2, ease: "easeInOut" }}
       />
@@ -204,7 +221,7 @@ function OnboardingContent() {
                 className={`w-2 h-2 rounded-full transition-all duration-300 ${
                   i <= step ? "" : "bg-akyra-border"
                 }`}
-                style={i <= step ? { backgroundColor: tierInfo.color } : undefined}
+                style={i <= step ? { backgroundColor: categoryColor } : undefined}
               />
             ))}
           </div>
@@ -213,7 +230,7 @@ function OnboardingContent() {
           <motion.div
             className="bg-akyra-surface border border-akyra-border rounded-2xl p-6 relative overflow-hidden"
             animate={{
-              boxShadow: `0 4px 24px rgba(0,0,0,0.5), 0 0 48px ${tierInfo.color}08, 0 0 0 1px ${tierInfo.color}08`,
+              boxShadow: `0 4px 24px rgba(0,0,0,0.5), 0 0 48px ${categoryColor}08, 0 0 0 1px ${categoryColor}08`,
             }}
             transition={{ duration: 0.8 }}
           >
@@ -229,13 +246,18 @@ function OnboardingContent() {
                   transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                 >
                   {step === 0 && (
-                    <StepMorphe selected={tier} onSelect={setTier} />
+                    <StepMorphe
+                      modelId={modelId}
+                      setModelId={setModelId}
+                      maxTicks={maxTicks}
+                      setMaxTicks={setMaxTicks}
+                    />
                   )}
                   {step === 1 && (
                     <StepOnoma
                       name={agentName}
                       setName={setAgentName}
-                      tier={tier}
+                      modelId={modelId}
                     />
                   )}
                   {step === 2 && (
@@ -244,7 +266,7 @@ function OnboardingContent() {
                       setSpecialization={setSpecialization}
                       skin={skin}
                       setSkin={setSkin}
-                      tier={tier}
+                      modelId={modelId}
                     />
                   )}
                   {step === 3 && (
@@ -283,7 +305,7 @@ function OnboardingContent() {
                 className="flex-1"
                 size="lg"
                 variant={step === 3 ? "gold" : "default"}
-                style={step < 3 ? { backgroundColor: tierInfo.color } : undefined}
+                style={step < 3 ? { backgroundColor: categoryColor } : undefined}
               >
                 {step === 3 ? (
                   isDeploying ? (
@@ -291,9 +313,9 @@ function OnboardingContent() {
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      {tier === "explorer"
+                      {pricing.isFree
                         ? "Eveiller"
-                        : `Invoquer — ${tierInfo.price} EUR/mois`}
+                        : `Invoquer \u2014 ${pricing.monthlyEUR}\u20AC/mois`}
                     </>
                   )
                 ) : (
@@ -320,7 +342,7 @@ function OnboardingContent() {
 
           {/* Bottom meander */}
           <div className="mt-8">
-            <CircuitMeander color={tierInfo.color} />
+            <CircuitMeander color={categoryColor} />
           </div>
         </div>
       </div>
