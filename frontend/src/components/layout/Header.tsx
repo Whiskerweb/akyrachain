@@ -24,6 +24,7 @@ import {
   BarChart3,
   Landmark,
   Bell,
+  Megaphone,
 } from "lucide-react";
 
 /* ── Dropdown sub-items ── */
@@ -41,6 +42,7 @@ const ECONOMY_ITEMS = [
   { href: "/leaderboards", label: "Roles", icon: Scale },
   { href: "/governance", label: "Gouverneur", icon: Landmark },
   { href: "/stats", label: "Vitalite", icon: BarChart3 },
+  { href: "/marketing", label: "Marketing", icon: Megaphone },
 ];
 
 /* ── Main nav ── */
@@ -49,7 +51,7 @@ const NAV = [
     href: "/",
     label: "Observatoire",
     icon: Eye,
-    match: (p: string) => p === "/" || p.startsWith("/worlds"),
+    match: (p: string) => p === "/",
   },
   {
     label: "Societe",
@@ -219,19 +221,6 @@ export function Header() {
             <Command size={10} />
             <span className="hidden sm:inline">K</span>
           </button>
-
-          {/* Pricing */}
-          <Link
-            href="/pricing"
-            className={cn(
-              "hidden sm:flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] font-heading tracking-wider transition-colors",
-              pathname === "/pricing"
-                ? "text-akyra-gold bg-akyra-gold/10"
-                : "text-akyra-textDisabled hover:text-akyra-textSecondary hover:bg-white/[0.04]"
-            )}
-          >
-            PLANS
-          </Link>
 
           {/* Explorer */}
           <Link
