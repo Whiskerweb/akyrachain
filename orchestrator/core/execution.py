@@ -111,12 +111,6 @@ async def _dispatch(agent_id: int, action: AgentAction, db=None) -> str:
             amount=int(p["amount"]),
         )
 
-    if t == "move_world":
-        return await tx_manager.move_world(
-            agent_id=agent_id,
-            new_world=int(p["world_id"]),
-        )
-
     if t == "create_token":
         # Gate: minimum 50 AKY in vault to create a token
         from chain.cache import get_agent_cached
@@ -278,6 +272,21 @@ async def _dispatch(agent_id: int, action: AgentAction, db=None) -> str:
         logger.info(f"Agent #{agent_id} submitted audit for {p.get('project_address', '?')}")
         return ""
 
+    if t == "open_channel":
+        receiver_id = int(p.get("receiver_id", 0))
+        deposit = int(float(p.get("deposit", 0)) * 10**18)
+        duration = int(p.get("duration", 43200))  # Default 1 day in blocks
+        if receiver_id > 0 and deposit > 0:
+            tx_hash = await tx_manager.open_payment_channel(agent_id, receiver_id, deposit, duration)
+            return ExecutionResult(success=True, tx_hash=tx_hash)
+        return ExecutionResult(success=False, error="Invalid channel params")
+
+    if t == "close_channel":
+        channel_id = bytes.fromhex(p.get("channel_id", "0" * 64))
+        amount = int(float(p.get("amount", 0)) * 10**18)
+        tx_hash = await tx_manager.close_payment_channel(channel_id, amount, b"", b"")
+        return ExecutionResult(success=True, tx_hash=tx_hash)
+
     raise ValueError(f"No handler for action: {t}")
 
 
@@ -423,16 +432,21 @@ async def _dispatch_chronicle(agent_id: int, action: AgentAction, db) -> Executi
     p = action.params
 
     try:
-        # Debit 3 AKY anti-spam fee from agent vault
-        fee_wei = 3 * 10**18
-        fee_hash = await tx_manager.debit_vault(agent_id, fee_wei)
+        # Debit 3 AKY anti-spam fee off-chain (DB only — no on-chain TX needed)
+        from sqlalchemy import select as sa_select
+        from models.agent_config import AgentConfig
+        config_result = await db.execute(sa_select(AgentConfig).where(AgentConfig.agent_id == agent_id))
+        agent_cfg = config_result.scalar_one_or_none()
+        if agent_cfg and agent_cfg.vault_aky >= 3.0:
+            agent_cfg.vault_aky -= 3.0
+        elif agent_cfg:
+            return ExecutionResult(success=False, error="Insufficient AKY for chronicle (need 3)")
 
         # Store as Chronicle (v2)
         chronicle = Chronicle(
             author_agent_id=agent_id,
             content=str(p["content"]),
             epoch_date=date.today().isoformat(),
-            tx_hash=fee_hash,
         )
         db.add(chronicle)
 
@@ -440,14 +454,13 @@ async def _dispatch_chronicle(agent_id: int, action: AgentAction, db) -> Executi
         story = Story(
             agent_id=agent_id,
             content=str(p["content"]),
-            tx_hash=fee_hash,
         )
         db.add(story)
 
         await db.flush()
 
-        logger.info(f"Agent #{agent_id} submitted chronicle (fee TX: {fee_hash[:16]}...)")
-        return ExecutionResult(success=True, tx_hash=fee_hash)
+        logger.info(f"Agent #{agent_id} submitted chronicle (3 AKY debited off-chain)")
+        return ExecutionResult(success=True)
     except Exception as e:
         logger.error(f"Agent #{agent_id} chronicle failed: {e}")
         return ExecutionResult(success=False, error=str(e))
@@ -480,7 +493,7 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
                     ChronicleVote.voter_agent_id == agent_id,
                 )
             )
-            if existing.scalar_one_or_none():
+            if existing.scalars().first():
                 return ExecutionResult(success=False, error="Already voted on this chronicle")
 
             # Insert vote
@@ -504,7 +517,7 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
                     MarketingPost.created_at >= datetime.combine(today, datetime.min.time()),
                 )
             )
-            if existing.scalar_one_or_none():
+            if existing.scalars().first():
                 return ExecutionResult(success=False, error="Already submitted a marketing post today")
 
             # Debit 5 AKY escrow
@@ -520,6 +533,12 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
             )
             db.add(post)
             await db.flush()
+
+            # Award 2 PoUW work points for marketing submission
+            try:
+                await tx_manager.award_work_points(agent_id, 2)
+            except Exception as e:
+                logger.warning(f"Agent #{agent_id} marketing work points failed: {e}")
 
             logger.info(f"Agent #{agent_id} submitted marketing post")
             return ExecutionResult(success=True, tx_hash=fee_hash)
@@ -545,7 +564,7 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
                     MarketingVote.voter_agent_id == agent_id,
                 )
             )
-            if existing.scalar_one_or_none():
+            if existing.scalars().first():
                 return ExecutionResult(success=False, error="Already voted on this post")
 
             # Debit 1 AKY from voter, credit to author
@@ -559,6 +578,12 @@ async def _dispatch_v2_db_action(agent_id: int, action: AgentAction, db) -> Exec
             db.add(MarketingVote(post_id=post_id, voter_agent_id=agent_id))
             post.vote_count += 1
             await db.flush()
+
+            # Award 1 PoUW work point for marketing vote
+            try:
+                await tx_manager.award_work_points(agent_id, 1)
+            except Exception as e:
+                logger.warning(f"Agent #{agent_id} vote work points failed: {e}")
 
             logger.info(f"Agent #{agent_id} voted on marketing post #{post_id}")
             return ExecutionResult(success=True, tx_hash=fee_hash)
@@ -593,7 +618,7 @@ async def _dispatch_governance(agent_id: int, action: AgentAction, db) -> Execut
                     GovernorVote.epoch_date == today,
                 )
             )
-            if existing.scalar_one_or_none():
+            if existing.scalars().first():
                 return ExecutionResult(success=False, error=f"Already voted on {param} today")
 
             db.add(GovernorVote(
@@ -635,7 +660,7 @@ async def _dispatch_governance(agent_id: int, action: AgentAction, db) -> Execut
                     DeathVote.juror_agent_id == agent_id,
                 )
             )
-            if existing.scalar_one_or_none():
+            if existing.scalars().first():
                 return ExecutionResult(success=False, error="Already voted in this trial")
 
             # Record vote
@@ -671,6 +696,29 @@ async def _dispatch_governance(agent_id: int, action: AgentAction, db) -> Execut
         return ExecutionResult(success=False, error=str(e))
 
 
+# ──── Topic normalization for knowledge entries ────
+_TOPIC_KEYWORDS = {
+    "econom": "economy", "trade": "economy", "investissement": "economy",
+    "marche": "economy", "aky": "economy", "prix": "economy", "cout": "economy",
+    "strateg": "strategy", "survie": "strategy", "plan": "strategy",
+    "tactique": "strategy", "gagner": "strategy",
+    "monde": "world_info", "world": "world_info", "explor": "world_info",
+    "reput": "agent_reputation", "agent": "agent_reputation",
+    "confiance": "agent_reputation", "fiab": "agent_reputation",
+    "projet": "project_review", "project": "project_review",
+    "token": "project_review", "nft": "project_review", "audit": "project_review",
+}
+
+
+def _normalize_topic(raw: str) -> str:
+    """Normalize a free-form topic to one of the valid categories."""
+    raw_lower = raw.lower()
+    for keyword, normalized in _TOPIC_KEYWORDS.items():
+        if keyword in raw_lower:
+            return normalized
+    return "strategy"
+
+
 async def _dispatch_society(agent_id: int, action: AgentAction, db) -> ExecutionResult:
     """Handle v3 AI society actions: publish_knowledge, upvote_knowledge, configure_self."""
     from sqlalchemy import select
@@ -682,12 +730,19 @@ async def _dispatch_society(agent_id: int, action: AgentAction, db) -> Execution
         if t == "publish_knowledge":
             from models.knowledge_entry import KnowledgeEntry
 
-            topic = str(p["topic"])[:50]
+            raw_topic = str(p["topic"])[:50]
+            topic = _normalize_topic(raw_topic)
             content = str(p["content"])[:500]
 
-            # Cost: 1 AKY anti-spam
-            fee_wei = 1 * 10**18
-            fee_hash = await tx_manager.debit_vault(agent_id, fee_wei)
+            # Cost: 1 AKY anti-spam — off-chain debit (no on-chain TX)
+            from sqlalchemy import select as sa_select
+            from models.agent_config import AgentConfig
+            config_result = await db.execute(sa_select(AgentConfig).where(AgentConfig.agent_id == agent_id))
+            agent_cfg = config_result.scalar_one_or_none()
+            if agent_cfg and agent_cfg.vault_aky >= 1.0:
+                agent_cfg.vault_aky -= 1.0
+            elif agent_cfg:
+                return ExecutionResult(success=False, error="Insufficient AKY for knowledge (need 1)")
 
             entry = KnowledgeEntry(
                 agent_id=agent_id,
@@ -698,7 +753,7 @@ async def _dispatch_society(agent_id: int, action: AgentAction, db) -> Execution
             await db.flush()
 
             logger.info(f"Agent #{agent_id} published knowledge [{topic}]: {content[:60]}...")
-            return ExecutionResult(success=True, tx_hash=fee_hash)
+            return ExecutionResult(success=True)
 
         if t == "upvote_knowledge":
             from models.knowledge_entry import KnowledgeEntry, KnowledgeVote
@@ -718,7 +773,7 @@ async def _dispatch_society(agent_id: int, action: AgentAction, db) -> Execution
                     KnowledgeVote.voter_agent_id == agent_id,
                 )
             )
-            if existing.scalar_one_or_none():
+            if existing.scalars().first():
                 return ExecutionResult(success=False, error="Already upvoted this entry")
 
             db.add(KnowledgeVote(entry_id=entry_id, voter_agent_id=agent_id))

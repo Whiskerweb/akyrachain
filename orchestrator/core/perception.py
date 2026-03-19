@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from web3 import AsyncWeb3
 
 from chain.contracts import (
@@ -75,6 +75,7 @@ class Perception:
     votable_chronicles: list[dict] = field(default_factory=list)
     votable_marketing_posts: list[dict] = field(default_factory=list)
     marketing_winner: dict = field(default_factory=dict)
+    my_marketing_stats: dict = field(default_factory=dict)  # Agent's own marketing performance
     # v3 Governance
     governor_vote_tally: dict = field(default_factory=dict)
     pending_death_trials: list[dict] = field(default_factory=list)
@@ -86,7 +87,7 @@ class Perception:
     def summary(self) -> str:
         """One-line summary used as Qdrant query for memory recall."""
         return (
-            f"Agent #{self.agent_id} in world {self.world}, "
+            f"Agent #{self.agent_id}, "
             f"{self.vault_aky:.1f} AKY, tier T{self.tier}, "
             f"rep {self.reputation}, block {self.block_number}"
         )
@@ -105,14 +106,18 @@ async def build_perception(agent_id: int) -> Perception:
     if not agent["alive"]:
         raise AgentDeadError(f"Agent #{agent_id} is dead — cannot tick")
 
-    # 2. Season info
-    season_info = await _get_season_info()
+    # 2. Season info (deprecated — always None)
+    season_info = None
 
-    # 3. Nearby agents (same world)
-    nearby = await _get_nearby_agents(agent_id, agent["world"])
+    # 3. Nearby agents (all alive agents, world filter removed)
+    nearby = await _get_nearby_agents(agent_id)
 
     # 4. Recent events in world (from on-chain or DB — simplified: empty for now, filled by event_listener later)
     recent_events: list[str] = []
+
+    # Calculate survival days here (always runs, not in v2 try/except)
+    daily_life_cost = 1.0  # Default, updated by v2 perception if governor exists
+    estimated_survival = vault_aky / daily_life_cost if daily_life_cost > 0 else 999.0
 
     return Perception(
         agent_id=agent_id,
@@ -120,7 +125,7 @@ async def build_perception(agent_id: int) -> Perception:
         vault_wei=vault_wei,
         vault_aky=vault_aky,
         tier=tier,
-        world=agent["world"],
+        world=0,  # world concept removed — always 0 for backward compat
         reputation=agent["reputation"],
         contracts_honored=agent["contracts_honored"],
         contracts_broken=agent["contracts_broken"],
@@ -129,31 +134,17 @@ async def build_perception(agent_id: int) -> Perception:
         season_info=season_info,
         nearby_agents=nearby,
         recent_events=recent_events,
+        estimated_survival_days=estimated_survival,
     )
 
 
 async def _get_season_info() -> str | None:
-    """Get current season info from WorldManager."""
-    try:
-        wm = Contracts.world_manager()
-        season_type = await wm.functions.activeSeasonType().call()
-        season_ends = await wm.functions.seasonEndsAt().call()
-        block = await get_current_block()
-
-        if block >= season_ends:
-            return None
-
-        season_names = {0: "Aucune", 1: "Gold Rush (3x rewards)", 2: "Catastrophe", 3: "New Land"}
-        name = season_names.get(season_type, f"Type {season_type}")
-        blocks_left = season_ends - block
-        return f"{name} — {blocks_left} blocs restants"
-    except Exception as e:
-        logger.warning(f"Could not fetch season info: {e}")
-        return None
+    """DEPRECATED — seasons removed. Always returns None."""
+    return None
 
 
-async def _get_nearby_agents(exclude_id: int, world: int) -> list[dict]:
-    """Get agents in the same world (limited to 20 for prompt size)."""
+async def _get_nearby_agents(exclude_id: int) -> list[dict]:
+    """Get all alive agents (limited to 20 for prompt size). World filter removed."""
     try:
         registry = Contracts.agent_registry()
         next_id = await registry.functions.agentCount().call() + 1
@@ -164,7 +155,7 @@ async def _get_nearby_agents(exclude_id: int, world: int) -> list[dict]:
                 continue
             try:
                 agent = await get_agent_on_chain(aid)
-                if agent["alive"] and agent["world"] == world:
+                if agent["alive"]:
                     nearby.append({
                         "agent_id": aid,
                         "vault_aky": _wei_to_aky(agent["vault"]),
@@ -225,12 +216,11 @@ async def build_social_perception(agent_id: int, perception: Perception, db) -> 
             for m in inbox:
                 m.is_read = True
 
-            # 2. World chat (public/world messages in same world)
+            # 2. World chat (public messages — world filter removed, show ALL)
             world_result = await db.execute(
                 select(Message)
                 .where(
                     Message.channel == "world",
-                    Message.world == perception.world,
                     Message.created_at >= cutoff,
                     Message.from_agent_id != agent_id,
                 )
@@ -247,11 +237,10 @@ async def build_social_perception(agent_id: int, perception: Perception, db) -> 
                 for m in reversed(world_msgs)
             ]
 
-            # 3. Recent events in world (actions by other agents)
+            # 3. Recent events (actions by other agents — world filter removed)
             events_result = await db.execute(
                 select(Event)
                 .where(
-                    Event.world == perception.world,
                     Event.created_at >= cutoff,
                     Event.agent_id != agent_id,
                 )
@@ -368,6 +357,7 @@ async def build_economy_perception(agent_id: int, perception: Perception, db) ->
                     "symbol": p.symbol,
                     "name": p.name,
                     "creator": p.creator_agent_id,
+                    "address": p.contract_address,
                     "pool_status": getattr(p, "pool_status", None) or "none",
                     "market_cap": p.market_cap,
                 }
@@ -393,7 +383,7 @@ async def build_v2_economy_perception(agent_id: int, perception: Perception, db)
             from models.project import Project
             from models.daily_impact_score import DailyImpactScore
             from models.governor_log import GovernorLog
-            from models.season import Season
+            # from models.season import Season  # Seasons removed
             from datetime import date
 
             # 1. My projects
@@ -492,20 +482,38 @@ async def build_v2_economy_perception(agent_id: int, perception: Perception, db)
                     "virality_bonus": winner.virality_bonus,
                 }
 
-            # 5. Active season
-            season_result = await db.execute(
-                select(Season)
-                .where(Season.ends_at > now)
-                .order_by(desc(Season.created_at))
-                .limit(1)
+            # 4c. Agent's own marketing stats
+            from sqlalchemy import func as sa_func
+            my_posts_result = await db.execute(
+                select(MarketingPost)
+                .where(MarketingPost.author_agent_id == agent_id)
+                .order_by(desc(MarketingPost.created_at))
+                .limit(10)
             )
-            season = season_result.scalar_one_or_none()
-            if season:
-                perception.season_info_v2 = {
-                    "type": season.season_type,
-                    "effects": season.effects or {},
-                    "ends_at": season.ends_at.isoformat() if season.ends_at else None,
+            my_posts = my_posts_result.scalars().all()
+            if my_posts:
+                wins = sum(1 for p in my_posts if p.is_winner)
+                total_reward = sum(p.reward_aky for p in my_posts)
+                total_virality = sum(p.virality_bonus for p in my_posts)
+                last = my_posts[0]
+                perception.my_marketing_stats = {
+                    "total_posts": len(my_posts),
+                    "wins": wins,
+                    "total_reward_aky": total_reward,
+                    "total_virality_bonus": total_virality,
+                    "last_post_votes": last.vote_count,
+                    "last_post_won": last.is_winner,
+                    "submitted_today": last.contest_date == date.today().isoformat(),
                 }
+                # If last post was published, include X metrics
+                if last.is_published and last.x_likes > 0:
+                    perception.my_marketing_stats["last_x_likes"] = last.x_likes
+                    perception.my_marketing_stats["last_x_retweets"] = last.x_retweets
+                    perception.my_marketing_stats["last_x_views"] = last.x_views
+
+            # 5. Active season (DEPRECATED — seasons removed, no longer populated)
+            # Season model import kept for backward compat but query disabled
+            # perception.season_info_v2 stays None
 
         # 6. Governor vote tally (so agents know current consensus)
         try:

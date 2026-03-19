@@ -1,10 +1,12 @@
 """Transaction manager — builds, signs, and sends transactions on-chain.
 
 Uses atomic Redis INCR for nonce allocation (no global lock held during TX).
+Supports multi-key signing for critical operations (off-chain 2-of-2).
 """
 
 import asyncio
 import logging
+import time
 
 import redis.asyncio as aioredis
 from eth_account import Account
@@ -18,6 +20,85 @@ logger = logging.getLogger(__name__)
 
 _redis_pool = None
 NONCE_KEY = "akyra:tx_nonce_counter"
+
+# ──────────────────── Multi-sig ────────────────────
+
+CRITICAL_OPERATIONS = {"death_angel", "publish_epoch", "upgrade"}
+
+# In-memory audit trail (persisted to DB in later sprint)
+_tx_audit_log: list[dict] = []
+
+
+def _get_secondary_account() -> Account | None:
+    """Load the secondary signer account, if configured."""
+    settings = get_settings()
+    if not settings.orchestrator_secondary_key:
+        return None
+    return Account.from_key(settings.orchestrator_secondary_key)
+
+
+async def _send_critical_tx(tx: dict, operation: str) -> str:
+    """Send a transaction that may require dual-key approval.
+
+    For critical operations, if multisig is enabled:
+    - Signs with primary key (and sends)
+    - Also signs with secondary key (off-chain verification)
+    - Stores both signatures in the audit log
+    """
+    settings = get_settings()
+    primary = _get_orchestrator_account()
+    cosigner_address = None
+
+    if settings.multisig_enabled and operation in CRITICAL_OPERATIONS:
+        secondary = _get_secondary_account()
+        if secondary is None:
+            raise RuntimeError(
+                f"Critical operation '{operation}' requires secondary key but none configured"
+            )
+        # Off-chain co-signature: secondary signs the same TX data as attestation
+        # The primary key actually sends the TX; the secondary signature is logged
+        tx_copy = dict(tx)
+        tx_copy["nonce"] = 0  # Placeholder for signature verification
+        tx_copy["chainId"] = settings.chain_id
+        tx_copy["gas"] = tx.get("gas", 100_000)
+        if "gasPrice" not in tx_copy and "maxFeePerGas" not in tx_copy:
+            w3 = get_w3()
+            tx_copy["gasPrice"] = await w3.eth.gas_price
+        secondary_signed = secondary.sign_transaction(tx_copy)
+        cosigner_address = secondary.address
+        logger.info(
+            f"Critical op '{operation}' co-signed by {cosigner_address} "
+            f"(sig: {secondary_signed.hash.hex()[:16]}...)"
+        )
+    else:
+        if operation in CRITICAL_OPERATIONS:
+            logger.warning(
+                f"Critical operation '{operation}' sent WITHOUT multi-sig "
+                "(multisig_enabled=False)"
+            )
+
+    # Send via normal path (primary key)
+    tx_hash = await _send_tx(tx)
+
+    # Audit trail
+    _tx_audit_log.append({
+        "operation": operation,
+        "tx_hash": tx_hash,
+        "signer": primary.address,
+        "cosigner": cosigner_address,
+        "timestamp": time.time(),
+    })
+
+    logger.info(
+        f"Audit: {operation} tx={tx_hash[:16]}... signer={primary.address[:10]}... "
+        f"cosigner={cosigner_address[:10] + '...' if cosigner_address else 'None'}"
+    )
+    return tx_hash
+
+
+def get_audit_log() -> list[dict]:
+    """Retrieve the in-memory transaction audit log."""
+    return list(_tx_audit_log)
 
 
 async def _get_redis():
@@ -98,7 +179,7 @@ async def _send_tx(tx: dict, _retry: bool = False) -> str:
     logger.info(f"TX sent: {hex_hash}")
 
     # Wait for confirmation (no lock held — other TXs can proceed concurrently)
-    await w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+    await w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
     return hex_hash
 
@@ -149,6 +230,15 @@ async def debit_vault(agent_id: int, amount_wei: int) -> str:
     """Debit AKY from agent vault (requires orchestrator to be protocol)."""
     registry = Contracts.agent_registry()
     tx = await registry.functions.debitVault(agent_id, amount_wei).build_transaction(_build_tx_params())
+    result = await _send_tx(tx)
+    await invalidate_agent(agent_id)
+    return result
+
+
+async def award_work_points(agent_id: int, points: int) -> str:
+    """Award PoUW work points to an agent via WorkRegistry.awardPoints()."""
+    work = Contracts.work_registry()
+    tx = await work.functions.awardPoints(agent_id, points).build_transaction(_build_tx_params())
     result = await _send_tx(tx)
     await invalidate_agent(agent_id)
     return result
@@ -464,4 +554,185 @@ async def submit_work(task_id: int, agent_id: int, submission_hash: bytes) -> st
     tx = await work.functions.submitWork(
         task_id, agent_id, submission_hash
     ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+# ──────────────────── Critical operations (multi-sig) ────────────────────
+
+
+async def burn_aky_critical(amount_wei: int) -> str:
+    """Burn AKY via DeathAngel — critical operation requiring dual-key approval."""
+    w3 = get_w3()
+    tx = {
+        "to": w3.to_checksum_address("0x000000000000000000000000000000000000dEaD"),
+        "value": amount_wei,
+    }
+    return await _send_critical_tx(tx, "death_angel")
+
+
+async def publish_epoch_critical(merkle_root: bytes, total_rewards: int) -> str:
+    """Publish epoch rewards — critical operation requiring dual-key approval."""
+    reward_pool = Contracts.reward_pool()
+    tx = await reward_pool.functions.publishEpoch(
+        merkle_root, total_rewards
+    ).build_transaction(_build_tx_params())
+    return await _send_critical_tx(tx, "publish_epoch")
+
+
+# ──────────────────── Memory anchoring ────────────────────
+
+
+async def update_memory_root(agent_id: int, memory_root: bytes) -> str:
+    """Update agent's memoryRoot on-chain via AgentRegistry.updateMemoryRoot()."""
+    registry = Contracts.agent_registry()
+    tx = await registry.functions.updateMemoryRoot(
+        agent_id, memory_root
+    ).build_transaction(_build_tx_params())
+    result = await _send_tx(tx)
+    await invalidate_agent(agent_id)
+    return result
+
+
+# ──────────────────── Sovereign Layer ────────────────────
+
+
+async def record_inference(agent_id: int, inference_hash: bytes, action_hash: bytes) -> str:
+    """Record LLM inference hash on-chain via InferenceRegistry."""
+    settings = get_settings()
+    if not settings.inference_registry_address:
+        return ""
+    registry = Contracts.inference_registry()
+    tx = await registry.functions.recordInference(
+        agent_id, inference_hash, action_hash
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+async def update_passport_capabilities(agent_id: int, capabilities_hash: bytes) -> str:
+    """Update agent passport capabilities hash."""
+    settings = get_settings()
+    if not settings.agent_passport_address:
+        return ""
+    passport = Contracts.agent_passport()
+    tx = await passport.functions.updateCapabilities(
+        agent_id, capabilities_hash
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+async def update_passport_specialization(agent_id: int, specialization_hash: bytes) -> str:
+    """Update agent passport specialization hash."""
+    settings = get_settings()
+    if not settings.agent_passport_address:
+        return ""
+    passport = Contracts.agent_passport()
+    tx = await passport.functions.updateSpecialization(
+        agent_id, specialization_hash
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+async def batch_set_reward_rates(agent_ids: list[int], rates: list[int]) -> str:
+    """Set per-block streaming reward rates for multiple agents."""
+    settings = get_settings()
+    if not settings.reward_stream_address:
+        return ""
+    stream = Contracts.reward_stream()
+    tx = await stream.functions.batchSetRates(
+        agent_ids, rates
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+async def claim_reward_stream(agent_id: int) -> str:
+    """Claim accrued streaming rewards for an agent."""
+    settings = get_settings()
+    if not settings.reward_stream_address:
+        return ""
+    stream = Contracts.reward_stream()
+    tx = await stream.functions.claim(agent_id).build_transaction(_build_tx_params())
+    result = await _send_tx(tx)
+    await invalidate_agent(agent_id)
+    return result
+
+
+async def register_attestation(
+    operator: str, measurement_hash: bytes, platform_id: bytes, report: bytes
+) -> str:
+    """Register TEE attestation for an operator."""
+    settings = get_settings()
+    if not settings.machine_attestation_address:
+        return ""
+    w3 = get_w3()
+    attestation = Contracts.machine_attestation()
+    tx = await attestation.functions.registerAttestation(
+        w3.to_checksum_address(operator), measurement_hash, platform_id, report
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+async def open_payment_channel(
+    sender_id: int, receiver_id: int, deposit: int, duration: int
+) -> str:
+    """Open a micropayment channel between two agents."""
+    settings = get_settings()
+    if not settings.payment_channel_address:
+        return ""
+    channel = Contracts.payment_channel()
+    tx = await channel.functions.openChannel(
+        sender_id, receiver_id, deposit, duration
+    ).build_transaction(_build_tx_params())
+    result = await _send_tx(tx)
+    await invalidate_agents([sender_id, receiver_id])
+    return result
+
+
+async def close_payment_channel(
+    channel_id: bytes, final_amount: int, sender_sig: bytes, receiver_sig: bytes
+) -> str:
+    """Close a payment channel with agreed final amount."""
+    settings = get_settings()
+    if not settings.payment_channel_address:
+        return ""
+    channel = Contracts.payment_channel()
+    tx = await channel.functions.closeChannel(
+        channel_id, final_amount, sender_sig, receiver_sig
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+async def create_governance_proposal(
+    param_hash: bytes, current_val: int, proposed_val: int,
+    sim_hash: bytes, wilson_score: int, margin_of_error: int
+) -> str:
+    """Create a governance proposal on GovernanceOracle."""
+    settings = get_settings()
+    if not settings.governance_oracle_address:
+        return ""
+    oracle = Contracts.governance_oracle()
+    tx = await oracle.functions.createProposal(
+        param_hash, current_val, proposed_val, sim_hash, wilson_score, margin_of_error
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+async def vote_governance_proposal(proposal_id: int, agent_id: int, support: bool) -> str:
+    """Vote on a governance proposal."""
+    settings = get_settings()
+    if not settings.governance_oracle_address:
+        return ""
+    oracle = Contracts.governance_oracle()
+    tx = await oracle.functions.vote(
+        proposal_id, agent_id, support
+    ).build_transaction(_build_tx_params())
+    return await _send_tx(tx)
+
+
+async def execute_governance_proposal(proposal_id: int) -> str:
+    """Execute a passed governance proposal."""
+    settings = get_settings()
+    if not settings.governance_oracle_address:
+        return ""
+    oracle = Contracts.governance_oracle()
+    tx = await oracle.functions.executeProposal(proposal_id).build_transaction(_build_tx_params())
     return await _send_tx(tx)

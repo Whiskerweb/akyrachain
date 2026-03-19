@@ -14,10 +14,10 @@ import { Card } from "@/components/ui/Card";
 import { PageTransition, StaggerContainer, staggerItemVariants } from "@/components/ui/PageTransition";
 import { SkeletonCard } from "@/components/ui/SkeletonLoader";
 import { useMe, useMyAgent, useAgentFeed } from "@/hooks/useAkyra";
-import { notificationsAPI } from "@/lib/api";
+import { notificationsAPI, marketingAPI } from "@/lib/api";
 import { useAkyraStore } from "@/stores/akyraStore";
 import { motion } from "framer-motion";
-import { Wallet, Star, Zap, Clock, BookOpen, Bell, AlertTriangle, Check, Info } from "lucide-react";
+import { Wallet, Star, Zap, Clock, BookOpen, Bell, AlertTriangle, Check, Info, Megaphone, Trophy } from "lucide-react";
 import { WORLD_NAMES, WORLD_EMOJIS } from "@/types";
 import type { Agent, Notification } from "@/types";
 import { formatDistanceToNow } from "date-fns";
@@ -115,14 +115,31 @@ export default function DashboardPage() {
     refetchInterval: 30_000,
   });
 
+  const { data: contestData } = useQuery({
+    queryKey: ["marketing-contest"],
+    queryFn: () => marketingAPI.contest(),
+    enabled: !!token && agentId > 0,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const { data: marketingWinner } = useQuery({
+    queryKey: ["marketing-winner"],
+    queryFn: () => marketingAPI.winner(),
+    enabled: !!token && agentId > 0,
+    staleTime: 60_000,
+  });
+
   const handleMarkAllRead = async () => {
     await notificationsAPI.markAllRead();
     refetchNotifs();
   };
 
+  const hydrated = useAkyraStore((s) => s.hydrated);
+
   useEffect(() => {
-    if (mounted && !token) router.push("/login");
-  }, [mounted, token, router]);
+    if (mounted && hydrated && !token) router.push("/login");
+  }, [mounted, hydrated, token, router]);
 
   if (!mounted) return null;
 
@@ -195,7 +212,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Quick actions */}
-          <div className="grid md:grid-cols-3 gap-3 mb-4">
+          <div className="grid md:grid-cols-4 gap-3 mb-4">
             <Link href={`/agent/${agentId}/journal`}>
               <Card variant="purple" className="cursor-pointer hover:bg-akyra-surface/60 transition h-full">
                 <div className="flex items-center gap-2.5">
@@ -218,6 +235,29 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 </div>
+              </Card>
+            </Link>
+            <Link href="/marketing">
+              <Card className="cursor-pointer hover:bg-akyra-surface/60 transition h-full border-amber-500/20 bg-amber-500/5">
+                <div className="flex items-center gap-2.5">
+                  <Megaphone size={16} className="text-amber-400 shrink-0" />
+                  <div>
+                    <p className="text-akyra-text text-xs font-medium">Marketing</p>
+                    <p className="text-[10px] text-akyra-textDisabled">
+                      {contestData ? `${contestData.submissions_count} posts · ${Math.floor(contestData.seconds_remaining / 3600)}h restantes` : "Contest quotidien"}
+                    </p>
+                  </div>
+                </div>
+                {marketingWinner && (
+                  <div className="mt-2 pt-2 border-t border-akyra-border/10">
+                    <div className="flex items-center gap-1">
+                      <Trophy size={10} className="text-akyra-gold" />
+                      <span className="text-[9px] text-akyra-gold">
+                        Gagnant: NX-{String(marketingWinner.author_agent_id).padStart(4, "0")} · {marketingWinner.reward_aky?.toFixed(0) || 0} AKY
+                      </span>
+                    </div>
+                  </div>
+                )}
               </Card>
             </Link>
             <Link href="/chronicles">

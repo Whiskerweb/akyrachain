@@ -64,7 +64,8 @@ library AkyraTypes {
         REPORT,         // 1
         MODERATION,     // 2
         VALIDATION,     // 3
-        ORACLE          // 4
+        ORACLE,         // 4
+        MARKETING       // 5
     }
 
     enum Verdict {
@@ -207,4 +208,66 @@ library AkyraTypes {
     uint16 constant SOMMET_MIN_BALANCE = 2000;       // 2000 AKY threshold (in whole units)
 
     address constant BURN_ADDRESS = address(0xdead);
+
+    // ──────────────────── INFERENCE ────────────────────
+    struct InferenceRecord {
+        bytes32 inferenceHash;
+        uint64 blockNumber;
+        bytes32 actionHash;
+    }
+
+    // ──────────────────── PASSPORT ────────────────────
+    struct AgentPassportData {
+        uint32 agentId;
+        bytes32 capabilitiesHash;
+        bytes32 specializationHash;
+        uint64 mintedAt;
+        bool active;
+    }
+
+    // ──────────────────── REWARD STREAM ────────────────────
+    struct StreamState {
+        uint128 ratePerBlock;
+        uint64 lastClaimBlock;
+        uint128 accruedUnclaimed;
+    }
+
+    // ──────────────────── MACHINE ATTESTATION ────────────────────
+    struct AttestationRecord {
+        bytes32 measurementHash;
+        bytes32 platformId;
+        uint64 attestedAt;
+        uint64 expiresAt;
+        bool valid;
+    }
+
+    // ──────────────────── PAYMENT CHANNEL ────────────────────
+    struct Channel {
+        uint32 senderAgentId;
+        uint32 receiverAgentId;
+        uint128 deposit;
+        uint128 withdrawn;
+        uint64 openedAt;
+        uint64 expiresAt;
+        bool open;
+    }
+
+    // ──────────────────── GOVERNANCE ORACLE ────────────────────
+    struct ParameterProposal {
+        uint32 proposalId;
+        bytes32 parameterHash;
+        int256 currentValue;
+        int256 proposedValue;
+        uint128 wilsonScore;
+        uint128 marginOfError;
+        uint32 yesVotes;
+        uint32 noVotes;
+        uint64 simulationBlockStart;
+        uint64 simulationBlockEnd;
+        bytes32 simulationResultHash;
+        bool executed;
+        bool passed;
+        uint64 createdAt;
+        uint64 votingEndsAt;
+    }
 }

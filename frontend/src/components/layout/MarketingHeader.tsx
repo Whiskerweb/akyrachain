@@ -24,10 +24,10 @@ export function MarketingHeader() {
             Decouvrir
           </a>
           <Link
-            href="/pricing"
+            href="/signup"
             className="text-xs text-akyra-textSecondary hover:text-akyra-text transition-colors"
           >
-            Pricing
+            Commencer
           </Link>
         </nav>
 

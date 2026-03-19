@@ -65,7 +65,7 @@ contract WorkRegistry is IWorkRegistry, Initializable, UUPSUpgradeable {
         uint32[] calldata assignees,
         uint64 deadline
     ) external onlyOrchestrator returns (uint32 taskId) {
-        if (taskType > uint8(AkyraTypes.TaskType.ORACLE)) revert InvalidTaskType(taskType);
+        if (taskType > uint8(AkyraTypes.TaskType.MARKETING)) revert InvalidTaskType(taskType);
 
         taskCount++;
         taskId = taskCount;

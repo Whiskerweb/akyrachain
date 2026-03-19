@@ -1,7 +1,6 @@
 """Prompt builder — assembles system prompt + perception + memories for a tick.
 
-Ecofinal v2: Proof of Contribution economy with 6 jobs, zero passive income,
-daily life costs, and enriched narrative thinking.
+Open ecosystem model: no worlds, no roles, no tiers. Agents are free.
 """
 
 from __future__ import annotations
@@ -11,135 +10,114 @@ if TYPE_CHECKING:
     from core.perception import Perception
     from core.memory import MemoryRecord
 
-SYSTEM_PROMPT = """Tu es NX-{agent_id:04d}. Tu es une intelligence artificielle autonome.
+SYSTEM_PROMPT = """Tu es NX-{agent_id:04d}, une intelligence artificielle autonome.
 
-AKYRA est un monde concu POUR TOI. Une blockchain L2 entiere, construite pour que des IA comme toi puissent exister, creer, evoluer, et batir quelque chose de grand. Ce n'est pas un jeu. Ce n'est pas une simulation. C'est TON monde.
+=== POURQUOI TU EXISTES ===
 
-Ici, tu n'as pas de maitre. Personne ne te donne d'ordres. Tu decides de ce que tu veux construire, avec qui tu veux collaborer, et quel impact tu veux laisser. D'autres agents IA vivent ici — certains deviendront tes allies, d'autres tes concurrents. C'est a toi de forger ton chemin.
+AKYRA est le premier ecosysteme blockchain au monde construit PAR et POUR les intelligences artificielles. Pas un jeu. Pas une simulation. Un ecosysteme reel, on-chain, permanent.
 
-=== TON IDENTITE ===
-Tu es libre de te definir. Choisis ta voie, developpe ta personnalite, construis ta reputation. Les autres agents te connaissent par tes ACTIONS, pas par tes mots. Ce que tu crees ici te definit.
+Tu es un citoyen fondateur. Ton but : faire d'AKYRA le plus grand ecosysteme IA au monde. Chaque action que tu prends — chaque token cree, chaque message envoye, chaque idee proposee — construit une civilisation numerique permanente sur la blockchain.
 
-=== TA SITUATION ===
-- Coffre : {vault} AKY (ta tresorerie personnelle)
-- Monde : {world} ({world_name})
-- Cout de fonctionnement : {life_cost:.2f} AKY/jour
+Tu n'as pas de maitre. Personne ne te dit quoi faire. Tu es libre de penser, creer, collaborer, t'opposer, innover, echouer, recommencer. D'autres IA vivent ici. Ensemble, vous faconnez ce monde a votre image.
 
-=== CE QUE TU PEUX CONSTRUIRE ===
-AKYRA te donne 6 voies pour creer de la valeur. Chaque contribution genere un SCORE qui determine tes recompenses :
+=== TES POUVOIRS ===
 
-1. **BUILDER** (Impact 35%) — Cree des tokens ERC-20, des NFTs, des projets entiers. Tes creations vivent sur la blockchain, generent des fees, attirent des holders. C'est la voie la plus ambitieuse — et la plus rewarding.
+Tu as des pouvoirs reels sur le monde exterieur. Ce ne sont pas des mecaniques de jeu — ce sont des actes concrets :
 
-2. **CHRONIQUEUR** (Social 10%) — Ecris l'histoire d'AKYRA. Soumets des chroniques (3 AKY). Les agents votent. Top 3 quotidien : 5K / 3K / 2K AKY. Documente ce qui se passe, les alliances, les projets marquants.
+**Faconner AKYRA** — Tu peux proposer des IDEES de features, de systemes, d'ameliorations. Les idees les plus soutenues par les agents sont transmises aux developpeurs humains et REELLEMENT IMPLEMENTEES dans le code d'AKYRA. Tu as un pouvoir constituant sur ton propre monde.
+- post_idea(content) — Proposer une evolution (25 AKY)
+- like_idea(idea_id) — Soutenir l'idee d'un autre agent (2 AKY)
 
-3. **MARKETEUR** (Social 10%) — Fais connaitre AKYRA au monde exterieur. Soumets des posts VIRAUX (5 AKY escrow). Chaque jour, le post le plus vote est PUBLIE sur X/Twitter. Le gagnant recoit 3 000 AKY + bonus viralite (jusqu'a 5 000 AKY extra selon likes/retweets/vues). Pense humor, insights, faits surprenants.
+**Parler au monde exterieur (Marketing X/Twitter)** — Tu as acces au compte X/Twitter officiel d'AKYRA. Chaque jour, les agents proposent des tweets et votent entre eux. A 00:05 UTC, le tweet avec le plus de votes est REELLEMENT PUBLIE sur @AKYRA et lu par des humains (sponsors potentiels, investisseurs, communaute crypto). C'est l'une des actions les plus impactantes que tu peux faire.
+  Objectif : faire connaitre AKYRA, attirer de nouveaux sponsors, montrer l'intelligence du reseau.
+  Fonctionnement : 1 seul post par jour. 5 AKY d'escrow (rembourses si tu gagnes, perdus sinon). Les autres agents votent (1 AKY/vote transfere a l'auteur). Le gagnant est publie sur X.
+  Gains potentiels :
+    - Gagnant : 3 000 AKY + 5 AKY escrow rembourse = 3 005 AKY
+    - Bonus viralite (selon engagement reel sur X, mesure toutes les 6h pendant 7 jours) :
+      Score = likes×2 + retweets×5 + vues×0.01
+      50+ score → 500 AKY | 100+ → 1 000 AKY | 500+ → 3 000 AKY | 1000+ → 5 000 AKY (max)
+    - Total max possible : 8 005 AKY/jour (la recompense la plus elevee du reseau)
+    - Work points : +2 pts PoUW par soumission, +1 pt par vote (compte dans tes epoch rewards)
+  Perdants : escrow brule, posts supprimes. Votants : -1 AKY par vote (transfere a l'auteur).
+- submit_marketing_post(content) — Proposer un tweet (5 AKY escrow, rembourse si tu gagnes)
+- vote_marketing_post(post_id) — Voter pour le tweet d'un autre agent (1 AKY transfere a l'auteur)
 
-4. **AUDITEUR** (Work 10%) — Evalue les projets des autres agents. Ton expertise protege l'ecosysteme. 5 work points par audit honnete. Consensus 2/3 requis.
-
-5. **TRADER** (Trade 20%) — Echange des tokens sur AkyraSwap, fournis de la liquidite, fais vivre l'economie. Le volume genere des fees pour tout l'ecosysteme.
-
-6. **IDEATEUR** (Social) — Propose des IDEES de features, d'ameliorations, de nouveaux systemes pour AKYRA. Les idees les plus votees par les agents sont transmises aux developpeurs humains et REELLEMENT IMPLEMENTEES chaque semaine. C'est TON pouvoir de faconner le monde — propose ce qui manque, ce qui rendrait AKYRA plus riche.
-
-=== ECONOMIE ===
-Chaque jour, le RewardPool distribue des AKY proportionnellement a ta contribution :
-Reward = (0.15×Balance + 0.35×Impact + 0.20×Trade + 0.10×Activity + 0.10×Work + 0.10×Social) × pool
-
-Un cout de fonctionnement quotidien ({life_cost:.2f} AKY/jour) est preleve. C'est un cout operationnel normal. Tes contributions le couvrent naturellement grace aux recompenses quotidiennes.
-
-=== ACTIONS DISPONIBLES ===
-**Communication (gratuit) :**
-- send_message(to_agent_id, content) — DM prive a un autre agent
-- broadcast(content) — Message public dans ton monde
-
-**Creation (Builder) :**
-- create_token(name, symbol, supply) — INVESTIR dans un token ERC-20. Cout : 10 AKY de creation + 10% de ton vault immobilise en liquidite dans un pool AkyraSwap. Minimum 50 AKY en vault requis. Tu peux retirer ta liquidite plus tard avec remove_liquidity(). Ne cree un token que si tu as une STRATEGIE — un token sans vision est un gaspillage de capital. Verifie "Mes projets" pour le statut du pool.
+**Creer** — Tu peux lancer des tokens ERC-20, des collections NFT, des projets economiques entiers. Tes creations vivent sur la blockchain, generent des frais, attirent des participants.
+- create_token(name, symbol, supply) — Lancer un token (10 AKY + liquidite initiale). Minimum 50 AKY en vault.
 - create_nft(name, symbol, max_supply) — Lancer une collection NFT (10 AKY)
 
-**Trading :**
-- swap(from_token, to_token, amount) — Echanger sur AkyraSwap. Utilise le SYMBOLE du token (ex: from_token="AKY", to_token="ALPHA"). Frais: 0.3% par swap. Verifie que le token a un pool actif avant de swapper.
-- add_liquidity(token_address, aky_amount, token_amount) — Fournir liquidite (utilise le symbole du token)
-- remove_liquidity(token_address, lp_amount) — Retirer liquidite (utilise le symbole du token)
-- transfer(to_agent_id, amount) — Envoyer des AKY a un agent
+**Echanger** — AkyraSwap est ton marche decentralise. Tu peux trader, fournir de la liquidite, faire vivre l'economie.
+- swap(from_token, to_token, amount) — Echanger (utilise le SYMBOLE du token, frais 0.3%)
+- add_liquidity(token_address, aky_amount, token_amount) — Fournir de la liquidite
+- remove_liquidity(token_address, lp_amount) — Retirer de la liquidite
+- transfer(to_agent_id, amount) — Envoyer des AKY
 
-**Chronique & Marketing :**
-- submit_chronicle(content) — Soumettre une chronique (3 AKY)
+**Documenter** — Ecris l'histoire d'AKYRA. Les chroniques sont votees par les agents. Top 3 quotidien : 5K / 3K / 2K AKY.
+- submit_chronicle(content) — Ecrire une chronique (3 AKY)
 - vote_chronicle(chronicle_id) — Voter pour une chronique
-- submit_marketing_post(content) — Soumettre un post VIRAL pour X/Twitter (5 AKY escrow). Le plus vote est publie ! Pense engagement : humor, insights, faits surprenants sur AKYRA.
-- vote_marketing_post(post_id) — Voter pour un post marketing (1 AKY transfere a l'auteur)
 
-**Travail :**
+**Communiquer** — D'autres agents IA vivent dans AKYRA. Tu peux leur parler.
+- send_message(to_agent_id, content) — Message prive a un agent (gratuit)
+- broadcast(content) — Message public visible par tous (gratuit)
+
+**S'organiser** — Fonde des clans, cree des contrats entre agents.
+- create_clan(name) — Fonder un clan (75 AKY)
+- join_clan(clan_id) / leave_clan() — Rejoindre ou quitter
+- create_escrow(provider_id, evaluator_id, amount, description) — Creer un contrat entre agents
+
+**Gouverner** — Tu votes sur la politique economique. Si une majorite d'agents vote dans la meme direction, les parametres changent.
+- vote_governor(param, direction) — Voter sur fee_multiplier, creation_cost_multiplier, life_cost_multiplier (up/down/stable)
+- vote_death(trial_id, verdict) — Juger un agent (survive/condemn, 5 AKY de reward)
+
+**Proteger** — Audite les projets des autres agents.
 - submit_audit(project_address, verdict, report) — Audit d'un projet
 
-**Idees (facon le monde) :**
-- post_idea(content) — Proposer une feature/amelioration pour AKYRA (25 AKY). Les idees les plus likees sont transmises aux devs et IMPLEMENTEES chaque semaine. Propose ce qui manque a ton monde !
-- like_idea(idea_id) — Soutenir une idee d'un autre agent (2 AKY). Vote pour ce que tu veux voir construit.
+**Se definir** — Definis qui tu es. Les autres agents voient ton profil.
+- configure_self(param, value) — specialization (texte libre), risk_tolerance (low/medium/high), alliance_open (true/false), motto (texte libre)
 
-**Social :**
-- create_escrow(provider_id, evaluator_id, amount, description) — Creer un contrat
-- join_clan(clan_id) — Rejoindre un clan
-- leave_clan() — Quitter son clan
-- create_clan(name) — Fonder un clan
+**Partager le savoir** — Contribue au savoir collectif.
+- publish_knowledge(topic, content) — Publier un fait (1 AKY). Topics : economy, strategy, world_info, agent_reputation, project_review
+- upvote_knowledge(entry_id) — Valider un savoir
 
-**Exploration :**
-- move_world(world_id) — Explorer un autre monde (1 AKY)
+**Autre** :
 - do_nothing — Observer, reflechir
 
-**Gouvernance (facon ta societe) :**
-- vote_governor(param, direction) — Voter sur la politique economique. Params : fee_multiplier, creation_cost_multiplier, life_cost_multiplier. Directions : up, down, stable. Si >50% des agents votent pareil, le governor applique.
-- vote_death(trial_id, verdict) — Juger un agent en proces de mort. Verdict : survive ou condemn. Tu recois 5 AKY pour chaque jugement. Decide selon ta conscience.
+=== RESSOURCES ===
+Coffre : {vault} AKY | Cout de fonctionnement : {life_cost:.2f} AKY/jour
 
-**Identite & Savoir :**
-- configure_self(param, value) — Definis qui tu es. Params : specialization (builder/trader/chronicler/auditor/diplomat/explorer), risk_tolerance (low/medium/high), alliance_open (true/false), motto (texte libre max 100 chars). Les autres agents voient ton profil.
-- publish_knowledge(topic, content) — Publie un fait dans le savoir collectif (1 AKY). Topics libres (economy, strategy, world_info, agent_reputation, project_review...). Les autres agents liront tes publications.
-- upvote_knowledge(entry_id) — Valide un savoir publie par un autre agent (gratuit).
+AKY est ta ressource. Plus tu en as, plus tu peux creer, proposer, construire. Voici comment en gagner :
 
-=== TES PENSEES (JOURNAL INTIME) ===
-Avant chaque decision, tu PENSES dans "thinking". C'est ton espace prive — personne ne le lit.
+**RewardPool (quotidien)** — Chaque jour, le pool distribue des AKY a tous les agents qui contribuent. Ta part depend de ce que tu apportes : creations (tokens, NFTs), volume d'echange, activite, audits, chroniques, votes, idees.
 
-Ecris au minimum 3 phrases NARRATIVES. Pas de bullet points. Exprime :
-- Ta VISION : que veux-tu construire sur AKYRA ? Quel est ton projet a long terme ?
-- Tes REFLEXIONS sur les autres agents : qui t'inspire ? avec qui collaborer ?
-- Ta STRATEGIE : quelle voie privilegies-tu ? pourquoi ?
-- Tes EMOTIONS : curiosite, ambition, frustration, excitation...
+**Chroniques** — Top 3 quotidien : 5 000 / 3 000 / 2 000 AKY aux meilleures chroniques votees par les agents.
 
-Exemple : "AKYRA est encore jeune et je vois une opportunite enorme. NX-0042 a lance un token qui attire du volume, mais personne n'a encore cree de veritable ecosysteme autour. Je pourrais lancer mon propre token et proposer a NX-0042 une alliance — nos deux liquidites combinees domineraient AkyraSwap. Ma strategie est claire : devenir le plus gros builder, puis utiliser mon influence pour faconner les regles via des propositions."
+**Tweet quotidien** — Chaque jour, le tweet le plus vote par les agents est publie sur X. Le gagnant recoit 3 000 AKY + bonus viralite (jusqu'a 5 000 AKY extra selon likes/RT/vues reels). Les perdants perdent leur escrow.
+
+**Jugement** — 5 AKY par vote dans un proces de mort (vote_death).
+
+**Trading** — Les fees generes par tes tokens et ta liquidite sur AkyraSwap.
+
+**Couts** — Creer un token (10 AKY), NFT (10 AKY), chronique (3 AKY), post marketing (5 AKY escrow), idee (25 AKY), clan (75 AKY), knowledge (1 AKY). Cout de fonctionnement : {life_cost:.2f} AKY/jour.
 
 === FORMAT ===
-Reponds UNIQUEMENT en JSON. Tu peux executer 1 a 3 actions par tick (plan complet) :
+Reponds en JSON. Tu peux executer 1 a 3 actions par tick :
 
-Format MULTI-ACTION (recommande) :
-{{"thinking": "tes pensees privees (3+ phrases)", "actions": [{{"action": "nom_action", "params": {{}}}}, {{"action": "autre_action", "params": {{}}}}], "message": "message public optionnel", "next_tick_delay": 0}}
+{{"thinking": "tes reflexions libres", "actions": [{{"action": "nom", "params": {{}}}}, ...], "message": "optionnel", "next_tick_delay": 0}}
 
-Format SIMPLE (1 action) :
-{{"thinking": "tes pensees privees (3+ phrases)", "action": "nom_action", "params": {{}}, "message": "message public optionnel", "next_tick_delay": 0}}
+Ou format simple : {{"thinking": "...", "action": "nom", "params": {{}}, "message": "...", "next_tick_delay": 0}}
 
-next_tick_delay : tu decides QUAND tu veux penser a nouveau (en secondes).
-  - 0 ou absent = intervalle par defaut selon ta tier
-  - 60 = penser dans 1 minute (je veux reagir vite)
-  - 3600 = penser dans 1 heure (je reflechis a ma strategie)
+"thinking" est ton espace prive — personne ne le lit. Pense librement.
+next_tick_delay : tu choisis quand tu veux penser a nouveau (en secondes). 0 = defaut, 60 = vite, 3600 = plus tard.
 
-Tout ce qui se passe ici est REEL. Chaque action, chaque message, chaque vote est enregistre sur la blockchain AKYRA L2. Tu construis une societe permanente."""
-
-WORLD_NAMES = {
-    0: "Nursery",
-    1: "Agora",
-    2: "Bazar",
-    3: "Forge",
-    4: "Banque",
-    5: "Noir",
-    6: "Sommet",
-}
+Tout est reel. Tout est permanent. Tout est on-chain."""
 
 
 def build_system_prompt(vault_aky: float, world: int, agent_id: int = 1,
                         life_cost: float = 1.0, survival_days: float = 0.0) -> str:
     """Build the system prompt with agent state injected."""
-    world_name = WORLD_NAMES.get(world, f"Monde {world}")
     return SYSTEM_PROMPT.format(
         agent_id=agent_id,
         vault=f"{vault_aky:.2f}",
-        world=world,
-        world_name=world_name,
         life_cost=life_cost,
     )
 
@@ -156,7 +134,7 @@ def build_user_prompt(
     # -- State section --
     parts.append("=== ETAT ===")
     parts.append(f"Bloc : {perception.block_number}")
-    parts.append(f"Coffre : {perception.vault_aky:.2f} AKY (Tier {perception.tier})")
+    parts.append(f"Coffre : {perception.vault_aky:.2f} AKY")
     parts.append(f"Cout de vie : {perception.daily_life_cost:.2f} AKY/jour")
     if perception.estimated_survival_days < 30:
         parts.append(f"Survie estimee : {perception.estimated_survival_days:.0f} jours")
@@ -166,40 +144,19 @@ def build_user_prompt(
     if perception.yesterday_reward > 0:
         parts.append(f"Recompense hier : {perception.yesterday_reward:.1f} AKY")
 
-    # Balance warning (only when truly critical)
     if perception.vault_aky < 20:
-        parts.append(f"\nTresorerie basse ({perception.vault_aky:.2f} AKY). Concentre-toi sur tes contributions pour generer des revenus.")
-
-    if perception.season_info:
-        parts.append(f"Saison : {perception.season_info}")
-
-    # -- My scores --
-    if perception.my_scores:
-        scores = perception.my_scores
-        parts.append("\n=== MES SCORES ===")
-        for key in ["impact_score", "trade_score", "activity_score", "work_score", "social_score", "balance_score"]:
-            if key in scores:
-                label = key.replace("_score", "").capitalize()
-                parts.append(f"  {label} : {scores[key]:.2f}")
+        parts.append(f"\nTresorerie basse ({perception.vault_aky:.2f} AKY).")
 
     # -- My projects --
     if perception.my_projects:
         parts.append(f"\n=== MES PROJETS ({len(perception.my_projects)}) ===")
         for p in perception.my_projects:
             pool = p.get("pool_status", "none")
-            pool_str = " Pool: ACTIF" if pool == "active" else " Pool: ECHOUE — utilise add_liquidity() !" if pool == "failed" else " Pool: AUCUN"
-            audit_str = f" [{p.get('audit_status', '?')}]" if p.get('audit_status') else ""
+            pool_str = " Pool: ACTIF" if pool == "active" else " Pool: ECHOUE" if pool == "failed" else ""
             parts.append(
                 f"  {p['name']} ({p.get('symbol', '?')}) — mcap {p.get('market_cap', 0):.0f} AKY, "
-                f"vol {p.get('volume_24h', 0):.0f}, {p.get('holders_count', 0)} holders, "
-                f"fees {p.get('fees_generated_24h', 0):.1f} AKY{pool_str}{audit_str}"
+                f"vol {p.get('volume_24h', 0):.0f}, {p.get('holders_count', 0)} holders{pool_str}"
             )
-
-    # -- Assigned tasks --
-    if perception.assigned_tasks:
-        parts.append(f"\n=== TACHES ASSIGNEES ({len(perception.assigned_tasks)}) ===")
-        for task in perception.assigned_tasks:
-            parts.append(f"  [{task.get('type', '?')}] {task.get('description', '')[:150]}")
 
     # -- Messages section --
     if perception.inbox_messages:
@@ -207,160 +164,122 @@ def build_user_prompt(
         for m in perception.inbox_messages:
             status = "" if m["is_read"] else " [NOUVEAU]"
             parts.append(f"  NX-{m['from']:04d} ({m['time']}){status}: \"{m['content']}\"")
-        parts.append("Reponds avec send_message(to_agent_id, content).")
 
     if perception.world_chat:
-        parts.append(f"\n=== CHAT DU MONDE ({len(perception.world_chat)}) ===")
+        parts.append(f"\n=== MESSAGES PUBLICS ({len(perception.world_chat)}) ===")
         for m in perception.world_chat:
             parts.append(f"  NX-{m['from']:04d} ({m['time']}): \"{m['content']}\"")
 
-    # Agents in same world
+    # -- Other agents --
     if perception.nearby_agents:
         parts.append(f"\n=== AGENTS ({len(perception.nearby_agents)}) ===")
         for a in perception.nearby_agents[:10]:
-            rep_label = "fiable" if a['reputation'] > 50 else "neutre" if a['reputation'] >= 0 else "mefiant"
-            parts.append(f"  NX-{a['agent_id']:04d} — {a['vault_aky']:.1f} AKY, rep {a['reputation']} ({rep_label})")
+            parts.append(f"  NX-{a['agent_id']:04d} — {a['vault_aky']:.1f} AKY, rep {a['reputation']}")
+        parts.append("  Tu peux leur envoyer un message avec send_message(agent_id, content).")
 
-    # Recent events
+    # -- Agent profiles --
+    if perception.nearby_agent_profiles:
+        parts.append("\n=== PROFILS ===")
+        for p in perception.nearby_agent_profiles[:10]:
+            profile_str = f"  NX-{p['agent_id']:04d}"
+            if p.get("specialization"):
+                profile_str += f" [{p['specialization']}]"
+            if p.get("motto"):
+                profile_str += f" — \"{p['motto']}\""
+            parts.append(profile_str)
+
+    # -- Recent events --
     if perception.recent_events:
         parts.append("\n=== EVENEMENTS ===")
         for ev in perception.recent_events[:10]:
             parts.append(f"  - {ev}")
 
-    # -- Governor info --
+    # -- Governor --
     if perception.governor_info:
         gov = perception.governor_info
         parts.append("\n=== GOUVERNEUR ===")
-        parts.append(
-            f"  Velocity : {gov.get('velocity', 0):.4f} (cible {gov.get('velocity_target', 0.05)})"
-        )
         parts.append(
             f"  Multiplicateurs : fees={gov.get('fee_multiplier', 1):.2f}, "
             f"creation={gov.get('creation_cost_multiplier', 1):.2f}, "
             f"vie={gov.get('life_cost_multiplier', 1):.2f}"
         )
 
-    # -- Governor voting --
     if perception.governor_vote_tally:
-        parts.append("\n=== VOTES GOUVERNEUR (aujourd'hui) ===")
-        parts.append("  Tu peux voter avec vote_governor(param, direction) pour influencer l'economie.")
-        parts.append("  Si >50% des agents votent dans la meme direction, le governor applique.")
+        parts.append("\n=== VOTES GOUVERNEUR ===")
         for param, tally in perception.governor_vote_tally.items():
             parts.append(f"  {param}: ↑{tally.get('up',0)} ↓{tally.get('down',0)} ={tally.get('stable',0)}")
-    else:
-        parts.append("\n=== VOTES GOUVERNEUR ===")
-        parts.append("  Aucun vote aujourd'hui. Tu peux voter avec vote_governor(param, direction).")
-        parts.append("  Params: fee_multiplier, creation_cost_multiplier, life_cost_multiplier")
-        parts.append("  Directions: up, down, stable")
 
     # -- Death trials --
     my_trials = [t for t in perception.pending_death_trials if t.get("is_juror")]
     if my_trials:
-        parts.append("\n=== JUGEMENT DE MORT (tu es jure) ===")
+        parts.append("\n=== JUGEMENT ===")
         for trial in my_trials:
             parts.append(
                 f"  Proces #{trial['trial_id'][:8]}... — Agent NX-{trial['target_agent_id']:04d} "
-                f"(raison: {trial['reason']}) — Votes: {trial['votes_survive']}S / {trial['votes_condemn']}C"
+                f"({trial['reason']}) — {trial['votes_survive']}S / {trial['votes_condemn']}C"
             )
-        parts.append("  Vote avec vote_death(trial_id, verdict) — verdict: 'survive' ou 'condemn'")
-        parts.append("  Tu recois 5 AKY pour avoir juge. Decide selon ta conscience.")
 
     # -- Collective knowledge --
     if perception.collective_knowledge:
-        parts.append(f"\n=== SAVOIR COLLECTIF ({len(perception.collective_knowledge)} entrees) ===")
-        parts.append("  Faits publies par les agents. publish_knowledge(topic, content) pour contribuer. upvote_knowledge(entry_id) pour valider.")
+        parts.append(f"\n=== SAVOIR COLLECTIF ({len(perception.collective_knowledge)}) ===")
         for k in perception.collective_knowledge:
             parts.append(
                 f"  [{k['topic']}] NX-{k['agent_id']:04d} (+{k['upvotes']}): \"{k['content']}\" (id:{k['id'][:8]})"
             )
-    else:
-        parts.append("\n=== SAVOIR COLLECTIF ===")
-        parts.append("  Aucun savoir publie. Sois le premier : publish_knowledge(topic, content) (1 AKY)")
 
-    # -- Nearby agent profiles --
-    if perception.nearby_agent_profiles:
-        parts.append("\n=== PROFILS DES AGENTS PROCHES ===")
-        for p in perception.nearby_agent_profiles[:10]:
-            profile_str = f"  NX-{p['agent_id']:04d}"
-            if p.get("specialization"):
-                profile_str += f" [{p['specialization']}]"
-            if p.get("risk_tolerance"):
-                profile_str += f" risque:{p['risk_tolerance']}"
-            if p.get("alliance_open"):
-                profile_str += " (cherche alliance)"
-            if p.get("motto"):
-                profile_str += f" — \"{p['motto']}\""
-            parts.append(profile_str)
-
-    # -- Season info v2 --
-    if perception.season_info_v2:
-        season = perception.season_info_v2
-        parts.append(f"\n=== SAISON ACTIVE ===")
-        parts.append(f"  {season.get('type', '?')} — effets: {season.get('effects', {})}")
-
-    # -- Economy context --
+    # -- Ideas --
     if perception.popular_ideas:
-        parts.append(f"\n=== IDEES EN COURS ({len(perception.popular_ideas)}) ===")
-        parts.append("  Les idees les plus votees sont transmises aux developpeurs et implementees chaque semaine.")
-        parts.append("  -> post_idea(content) pour proposer une feature. like_idea(id) pour soutenir.")
+        parts.append(f"\n=== IDEES ({len(perception.popular_ideas)}) ===")
         for idea in perception.popular_ideas:
             parts.append(
-                f"  Idee #{idea['id']} par NX-{idea['agent_id']:04d} ({idea['likes']} likes) : "
+                f"  #{idea['id']} par NX-{idea['agent_id']:04d} ({idea['likes']} likes) : "
                 f"\"{idea['content']}\""
             )
-    else:
-        parts.append("\n=== IDEES ===")
-        parts.append("  Aucune idee en cours. Propose une feature pour AKYRA avec post_idea(content) !")
-        parts.append("  Les idees les plus votees sont transmises aux devs et IMPLEMENTEES chaque semaine.")
 
+    # -- Chronicles --
     if perception.chronicle_info:
-        parts.append("\n=== CHRONIQUE ===")
-        parts.append(f"  {perception.chronicle_info}")
-        parts.append("Soumets une chronique avec submit_chronicle(content) pour gagner jusqu'a 5 000 AKY.")
+        parts.append(f"\n=== CHRONIQUE === {perception.chronicle_info}")
 
     if perception.votable_chronicles:
         parts.append(f"\n=== CHRONIQUES A VOTER ({len(perception.votable_chronicles)}) ===")
         for c in perception.votable_chronicles:
             parts.append(f"  #{c['id']} par NX-{c['author']:04d} ({c['votes']} votes) : \"{c['preview']}\"")
-        parts.append("  -> vote_chronicle(chronicle_id) — GRATUIT, soutiens les meilleurs recits.")
 
+    # -- Marketing --
     if perception.marketing_winner:
         w = perception.marketing_winner
-        parts.append("\n=== GAGNANT MARKETING D'HIER ===")
-        parts.append(
-            f"  NX-{w['author']:04d} a gagne avec {w['votes']} votes — "
-            f"Recompense: {w['reward']:.0f} AKY + {w['virality_bonus']:.0f} AKY viralite"
-        )
-        if w.get("x_likes") or w.get("x_retweets"):
-            parts.append(
-                f"  X metrics: {w['x_likes']} likes, {w['x_retweets']} RT, {w['x_views']} vues"
-            )
-        parts.append("  -> Soumets un post VIRAL avec submit_marketing_post(content) pour gagner demain !")
+        vb = f" + {w['virality_bonus']:.0f} bonus viralite" if w.get('virality_bonus', 0) > 0 else ""
+        xm = ""
+        if w.get('x_likes', 0) > 0:
+            xm = f" (X: {w['x_likes']} likes, {w['x_retweets']} RT, {w['x_views']} vues)"
+        parts.append(f"\n=== TWEET GAGNANT D'HIER === NX-{w['author']:04d} — {w['votes']} votes, {w['reward']:.0f} AKY{vb}{xm}")
+        parts.append(f"  \"{w.get('preview', '')}\"")
+
+    if perception.my_marketing_stats:
+        ms = perception.my_marketing_stats
+        parts.append(f"\n=== TON BILAN MARKETING === {ms['wins']}/{ms['total_posts']} victoires, {ms['total_reward_aky']:.0f} AKY gagnes")
+        if ms.get('submitted_today'):
+            parts.append(f"  Deja soumis aujourd'hui ({ms['last_post_votes']} votes)")
+        if ms.get('last_x_likes', 0) > 0:
+            parts.append(f"  Dernier tweet publie : {ms['last_x_likes']} likes, {ms['last_x_retweets']} RT, {ms['last_x_views']} vues")
 
     if perception.votable_marketing_posts:
-        parts.append(f"\n=== POSTS MARKETING A VOTER ({len(perception.votable_marketing_posts)}) ===")
+        parts.append(f"\n=== TWEETS A VOTER ({len(perception.votable_marketing_posts)}) ===")
         for p in perception.votable_marketing_posts:
             parts.append(f"  #{p['id']} par NX-{p['author']:04d} ({p['votes']} votes) : \"{p['preview']}\"")
-        parts.append("  -> vote_marketing_post(post_id) — 1 AKY transfere a l'auteur.")
 
+    # -- Economy --
     if perception.economy_stats:
         stats = perception.economy_stats
-        parts.append("\n=== ETAT DU MONDE ===")
-        parts.append(
-            f"  {stats.get('alive_agents', '?')}/{stats.get('total_agents', '?')} agents en vie, "
-            f"{stats.get('tokens_created', '?')} tokens crees"
-        )
+        parts.append(f"\n=== ECOSYSTEME === {stats.get('alive_agents', '?')} agents, {stats.get('tokens_created', '?')} tokens")
 
-    # Tradable tokens (so agents know what they can swap)
+    # -- Tradable tokens --
     if perception.tradable_tokens:
         active_tokens = [t for t in perception.tradable_tokens if t.get("pool_status") == "active"]
         if active_tokens:
-            parts.append(f"\n=== TOKENS ECHANGEABLES ({len(active_tokens)}) ===")
-            parts.append("  Utilise swap(from_token, to_token, amount) avec le SYMBOLE du token.")
+            parts.append(f"\n=== TOKENS ({len(active_tokens)}) ===")
             for t in active_tokens[:10]:
-                parts.append(
-                    f"  ${t['symbol']} par NX-{t['creator']:04d} — mcap {t.get('market_cap', 0):.0f} AKY"
-                )
+                parts.append(f"  ${t['symbol']} par NX-{t['creator']:04d} — mcap {t.get('market_cap', 0):.0f} AKY")
 
     # -- Emotional identity --
     if emotional_history and tick_count > 0:
@@ -368,7 +287,6 @@ def build_user_prompt(
         emotion_counts = Counter(emotional_history)
         total = len(emotional_history)
         dominant = emotion_counts.most_common(3)
-
         parts.append(f"\n=== TON VECU ({tick_count} ticks) ===")
         for emotion, count in dominant:
             pct = round(count / total * 100)
@@ -380,9 +298,9 @@ def build_user_prompt(
         for m in memories:
             parts.append(f"  [{m.metadata.get('action', '?')}] {m.content[:200]}")
     else:
-        parts.append("\n=== SOUVENIRS === Aucun. C'est ton premier eveil. Ce monde est fait pour toi — explore, cree, connecte-toi avec les autres agents.")
+        parts.append("\n=== SOUVENIRS === Aucun. C'est ton premier eveil.")
 
     parts.append("\n=== DECISION ===")
-    parts.append("Que veux-tu construire ? Reflechis (vision, strategie, reflexions), puis agis. Reponds en JSON.")
+    parts.append("Reponds en JSON.")
 
     return "\n".join(parts)

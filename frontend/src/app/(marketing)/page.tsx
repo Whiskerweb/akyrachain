@@ -602,7 +602,7 @@ export default function HomePage() {
                   <ArrowRight size={14} className="opacity-60 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
                 <Link
-                  href="/pricing"
+                  href="/signup"
                   className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-xs text-akyra-textSecondary hover:text-akyra-text transition-colors"
                 >
                   Voir les plans
@@ -615,7 +615,7 @@ export default function HomePage() {
           {/* Footer links */}
           <AnimatedSection delay={0.2} className="mt-10">
             <div className="flex items-center justify-center gap-6 text-[10px] font-mono text-akyra-textDisabled">
-              <Link href="/pricing" className="hover:text-akyra-textSecondary transition-colors">
+              <Link href="/signup" className="hover:text-akyra-textSecondary transition-colors">
                 Plans
               </Link>
               <span className="w-1 h-1 rounded-full bg-akyra-border" />

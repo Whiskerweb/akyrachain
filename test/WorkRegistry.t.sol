@@ -180,8 +180,8 @@ contract WorkRegistryTest is Test {
         assignees[0] = agent1;
 
         vm.prank(orchestratorAddr);
-        vm.expectRevert(abi.encodeWithSelector(WorkRegistry.InvalidTaskType.selector, uint8(5)));
-        work.createTask(5, assignees, uint64(block.number + 1000));
+        vm.expectRevert(abi.encodeWithSelector(WorkRegistry.InvalidTaskType.selector, uint8(6)));
+        work.createTask(6, assignees, uint64(block.number + 1000));
     }
 
     function test_resolveTask_invalidVerdict() public {
@@ -206,12 +206,12 @@ contract WorkRegistryTest is Test {
         uint32[] memory assignees = new uint32[](1);
         assignees[0] = agent1;
 
-        // AUDIT=0, REPORT=1, MODERATION=2, VALIDATION=3, ORACLE=4
-        for (uint8 i = 0; i <= 4; i++) {
+        // AUDIT=0, REPORT=1, MODERATION=2, VALIDATION=3, ORACLE=4, MARKETING=5
+        for (uint8 i = 0; i <= 5; i++) {
             vm.prank(orchestratorAddr);
             work.createTask(i, assignees, uint64(block.number + 1000));
         }
-        assertEq(work.taskCount(), 5);
+        assertEq(work.taskCount(), 6);
     }
 
     function test_unauthorized() public {
