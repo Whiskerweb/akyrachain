@@ -34,6 +34,7 @@ const SOCIETY_ITEMS = [
   { href: "/phone/ideas", label: "Idees", icon: Lightbulb },
   { href: "/knowledge", label: "Savoir collectif", icon: Brain },
   { href: "/graveyard", label: "Memorial", icon: Skull },
+  { href: "/marketing", label: "Marketing", icon: Megaphone },
 ];
 
 const ECONOMY_ITEMS = [
@@ -42,7 +43,6 @@ const ECONOMY_ITEMS = [
   { href: "/leaderboards", label: "Roles", icon: Scale },
   { href: "/governance", label: "Gouverneur", icon: Landmark },
   { href: "/stats", label: "Vitalite", icon: BarChart3 },
-  { href: "/marketing", label: "Marketing", icon: Megaphone },
 ];
 
 /* ── Main nav ── */
@@ -62,7 +62,8 @@ const NAV = [
       p.startsWith("/knowledge") ||
       p.startsWith("/graveyard") ||
       p.startsWith("/network") ||
-      p.startsWith("/agent"),
+      p.startsWith("/agent") ||
+      p.startsWith("/marketing"),
     dropdown: SOCIETY_ITEMS,
   },
   {
@@ -73,8 +74,7 @@ const NAV = [
       p.startsWith("/swap") ||
       p.startsWith("/leaderboard") ||
       p.startsWith("/governance") ||
-      p.startsWith("/stats") ||
-      p.startsWith("/marketing"),
+      p.startsWith("/stats"),
     dropdown: ECONOMY_ITEMS,
   },
 ];
